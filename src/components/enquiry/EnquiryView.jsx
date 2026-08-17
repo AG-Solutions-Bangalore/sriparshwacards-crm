@@ -16,8 +16,11 @@ function EnquiryView({
   loading,
   onToggleStatus,
   onDelete,
-  onLogout,
   onProfile,
+  currentPage = 1,
+  onPageChange,
+  totalPages = 1,
+  totalCount = 0,
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [columnsOpen, setColumnsOpen] = useState(false);
@@ -30,6 +33,29 @@ function EnquiryView({
     status: true,
   });
   const dropdownRef = useRef(null);
+
+  const itemsPerPage = 10;
+  const isServerPaginated = typeof onPageChange === 'function';
+  const filteredItems = items.filter((item) => {
+    const name = item.enquiryFullName || item.full_name || item.name || '';
+    const mobile = item.enquiryMobile || item.mobile || '';
+    const email = item.enquiryEmail || item.email || '';
+    const msg = item.enquiryMessage || item.message || '';
+    const q = searchQuery.toLowerCase();
+    return (
+      name.toLowerCase().includes(q) ||
+      mobile.toLowerCase().includes(q) ||
+      email.toLowerCase().includes(q) ||
+      msg.toLowerCase().includes(q)
+    );
+  });
+
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedItems = isServerPaginated ? filteredItems : filteredItems.slice(startIndex, startIndex + itemsPerPage);
+  const calculatedTotalPages = isServerPaginated ? totalPages : Math.max(1, Math.ceil(filteredItems.length / itemsPerPage));
+  const displayTotal = isServerPaginated ? (totalCount || items.length) : filteredItems.length;
+  const startNum = startIndex + 1;
+  const endNum = isServerPaginated ? Math.min(currentPage * itemsPerPage, displayTotal) : Math.min(startIndex + itemsPerPage, filteredItems.length);
 
   useEffect(() => {
     function handleClickOutside(e) {
@@ -44,19 +70,6 @@ function EnquiryView({
   const toggleCol = (key) => {
     setVisibleCols((prev) => ({ ...prev, [key]: !prev[key] }));
   };
-
-  const filteredItems = items.filter((item) => {
-    const name = item.name || item.customer_name || item.full_name || '';
-    const email = item.email || '';
-    const mobile = item.mobile || item.phone || '';
-    const query = searchQuery.toLowerCase();
-
-    return (
-      name.toLowerCase().includes(query) ||
-      email.toLowerCase().includes(query) ||
-      mobile.toLowerCase().includes(query)
-    );
-  });
 
   return (
     <div className="flex min-h-screen bg-[#F7F5F0] text-[#1A1817] font-sans">
@@ -76,24 +89,15 @@ function EnquiryView({
             <button
               type="button"
               onClick={onProfile}
-              className="flex items-center gap-3 rounded-full bg-white px-3 py-1.5 shadow-sm border border-[#E5E0D8] hover:border-[#C99C4B] transition cursor-pointer text-left"
+              className="flex items-center gap-3 rounded-lg bg-white px-3 py-1.5 shadow-sm border border-[#E5E0D8] hover:border-[#C99C4B] transition cursor-pointer text-left"
               title="View Profile"
             >
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#EFECE6] text-xs font-serif font-bold text-[#1A1817] border border-[#D5CFC5]">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#EFECE6] text-xs font-serif font-bold text-[#1A1817] border border-[#D5CFC5]">
                 EA
               </div>
               <div className="pr-1">
                 <p className="text-xs font-bold text-[#1A1817] leading-tight">Admin User</p>
-                <p className="text-[10px] text-[#8C857B] leading-tight">Manager</p>
               </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={onLogout}
-              className="rounded-none bg-[#1A1817] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-white transition hover:bg-[#38332E] cursor-pointer"
-            >
-              Logout
             </button>
           </div>
         </div>
@@ -188,24 +192,48 @@ function EnquiryView({
                       Loading enquiries...
                     </td>
                   </tr>
-                ) : filteredItems.length > 0 ? (
-                  filteredItems.map((item, index) => {
-                    const name = item.name || item.customer_name || item.full_name || 'N/A';
-                    const mobile = item.mobile || item.phone || 'N/A';
-                    const email = item.email || 'N/A';
-                    const message = item.message || item.remarks || 'N/A';
-                    const status = item.status || item.enquiry_status || 'New';
+                ) : paginatedItems.length > 0 ? (
+                  paginatedItems.map((item, index) => {
+                    const name =
+                      item.enquiryFullName ||
+                      item.enquiry_full_name ||
+                      item.customer_name ||
+                      item.full_name ||
+                      item.name ||
+                      item.customer ||
+                      'N/A';
 
-                    const badgeStyle =
-                      status.toLowerCase() === 'new'
-                        ? 'bg-[#F5CE93] text-[#1A1817]'
-                        : status.toLowerCase() === 'contacted'
-                          ? 'bg-[#E5E2DC] text-[#4A453E]'
-                          : 'bg-[#E6DDD0] text-[#544738]';
+                    const mobile =
+                      item.enquiryMobile ||
+                      item.enquiry_mobile ||
+                      item.mobile ||
+                      item.phone ||
+                      item.phone_number ||
+                      'N/A';
+
+                    const email =
+                      item.enquiryEmail || item.enquiry_email || item.email || 'N/A';
+
+                    const message =
+                      item.enquiryOccassion ||
+                      item.enquiryOccasion ||
+                      item.enquiry_occassion ||
+                      item.enquiryMessage ||
+                      item.enquiry_message ||
+                      item.message ||
+                      item.remarks ||
+                      item.occasion ||
+                      'N/A';
+
+                    const status =
+                      item.enquiryStatus ||
+                      item.enquiry_status ||
+                      item.status ||
+                      'New';
 
                     return (
                       <tr key={item.id || index} className="hover:bg-[#FAF8F5] transition-colors">
-                        {visibleCols.slno && <td className="px-6 py-4 font-mono text-[#8C857B]">{index + 1}</td>}
+                        {visibleCols.slno && <td className="px-6 py-4 font-mono text-[#8C857B]">{startIndex + index + 1}</td>}
                         {visibleCols.name && <td className="px-6 py-4 font-bold text-[#1A1817]">{name}</td>}
                         {visibleCols.mobile && <td className="px-6 py-4 text-[#59534C] font-mono">{mobile}</td>}
                         {visibleCols.email && <td className="px-6 py-4 text-[#59534C]">{email}</td>}
@@ -216,13 +244,27 @@ function EnquiryView({
                         )}
                         {visibleCols.status && (
                           <td className="px-6 py-4">
-                            <button
-                              type="button"
-                              onClick={() => onToggleStatus && onToggleStatus(item.id, status)}
-                              className={`inline-block px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider cursor-pointer ${badgeStyle}`}
+                            <select
+                              value={status}
+                              onChange={(e) => onToggleStatus && onToggleStatus(item.id, e.target.value)}
+                              className={`rounded border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-tight outline-none transition cursor-pointer max-w-[110px] ${
+                                String(status).toLowerCase().includes('pending')
+                                  ? 'border-amber-400 bg-amber-50 text-amber-800'
+                                  : String(status).toLowerCase().includes('followed')
+                                  ? 'border-blue-400 bg-blue-50 text-blue-800'
+                                  : String(status).toLowerCase().includes('not')
+                                  ? 'border-purple-400 bg-purple-50 text-purple-800'
+                                  : String(status).toLowerCase().includes('cancel')
+                                  ? 'border-rose-400 bg-rose-50 text-rose-800'
+                                  : 'border-emerald-400 bg-emerald-50 text-emerald-800'
+                              }`}
                             >
-                              {status}
-                            </button>
+                              <option value="Pending">Pending</option>
+                              <option value="Followed">Followed</option>
+                              <option value="Not Interested">Not Interested...</option>
+                              <option value="Complete">Complete</option>
+                              <option value="Cancel">Cancel</option>
+                            </select>
                           </td>
                         )}
                         <td className="px-6 py-4 text-right">
@@ -253,6 +295,48 @@ function EnquiryView({
               </tbody>
             </table>
           </div>
+
+          {/* ── PAGINATION BAR ── */}
+          <div className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between border-t border-[#F0ECE1] bg-[#FAF8F5]">
+            <p className="text-xs text-[#8C857B]">
+              Showing <span className="font-semibold text-[#1A1817]">{displayTotal > 0 ? startNum : 0}</span> to{' '}
+              <span className="font-semibold text-[#1A1817]">{endNum}</span> of{' '}
+              <span className="font-semibold text-[#1A1817]">{displayTotal}</span> enquiries
+            </p>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => onPageChange && onPageChange(currentPage - 1)}
+                disabled={currentPage <= 1}
+                className="inline-flex items-center gap-1 rounded-lg border border-[#E2DDD5] bg-white px-3.5 py-1.5 text-xs font-semibold text-[#1A1817] shadow-xs hover:bg-[#EFECE6] disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                </svg>
+                Previous
+              </button>
+
+              <div className="flex items-center gap-1 px-3 text-xs font-semibold text-[#59534C]">
+                <span>Page</span>
+                <span className="text-[#1A1817] font-bold">{currentPage}</span>
+                <span>of</span>
+                <span className="text-[#1A1817] font-bold">{calculatedTotalPages}</span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => onPageChange && onPageChange(currentPage + 1)}
+                disabled={currentPage >= calculatedTotalPages}
+                className="inline-flex items-center gap-1 rounded-lg border border-[#E2DDD5] bg-white px-3.5 py-1.5 text-xs font-semibold text-[#1A1817] shadow-xs hover:bg-[#EFECE6] disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
+              >
+                Next
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
+          </div>
         </div>
       </main>
     </div>
@@ -260,4 +344,3 @@ function EnquiryView({
 }
 
 export default EnquiryView;
-

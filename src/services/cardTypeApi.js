@@ -1,7 +1,7 @@
 import { api } from './api';
 
-export const getCardTypes = async () => {
-  const response = await api.get('/cardtype');
+export const getCardTypes = async (page = 1) => {
+  const response = await api.get('/cardtype', { params: { page } });
   return response.data;
 };
 
@@ -21,12 +21,34 @@ export const getActivePlacements = async () => {
 };
 
 export const createCardType = async (payload) => {
-  const data = typeof payload === 'string' ? { card_types: payload, card_types_status: 'Active' } : payload;
-  const response = await api.post('/cardtype', data);
+  let body = payload;
+  if (typeof payload === 'string') {
+    body = { card_types: payload, card_types_images: '' };
+  }
+  if (payload?.card_types_images instanceof File || payload?.card_types_images instanceof Blob) {
+    const formData = new FormData();
+    formData.append('card_types', payload.card_types || '');
+    formData.append('card_types_images', payload.card_types_images);
+    const response = await api.post('/cardtype', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  }
+  const response = await api.post('/cardtype', body);
   return response.data;
 };
 
 export const updateCardType = async (id, payload) => {
+  if (payload?.card_types_images instanceof File || payload?.card_types_images instanceof Blob) {
+    const formData = new FormData();
+    formData.append('card_types', payload.card_types || '');
+    formData.append('card_types_images', payload.card_types_images);
+    formData.append('_method', 'PUT');
+    const response = await api.post(`/cardtype/${id}`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  }
   const response = await api.put(`/cardtype/${id}`, payload);
   return response.data;
 };

@@ -1,17 +1,295 @@
+
 import { useEffect, useRef, useState } from 'react';
 
+import { api } from '../../services/api';
 import Sidebar from '../dashboard/Sidebar';
 
 /* Toggleable Columns */
 const TOGGLEABLE_COLUMNS = [
   { key: 'slno', label: 'Sl.no' },
+  { key: 'image', label: 'Image' },
   { key: 'name', label: 'Product Name' },
   { key: 'made_of', label: 'Made Of' },
-  { key: 'occasions', label: 'Occasion IDs' },
-  { key: 'categories', label: 'Category IDs' },
-  { key: 'card_types', label: 'Card Type IDs' },
+  { key: 'occasions', label: 'Occasions' },
+  { key: 'categories', label: 'Categories' },
+  // { key: 'card_types', label: 'Card Types' },
   { key: 'status', label: 'Status' },
 ];
+
+/* Helper function to resolve IDs to array of names */
+function getNameArrayFromIds(rawInput, list = [], primaryField = 'name') {
+  if (rawInput === undefined || rawInput === null || rawInput === '') return [];
+
+  const map = new Map();
+  if (Array.isArray(list)) {
+    list.forEach((item) => {
+      if (item && item.id !== undefined && item.id !== null) {
+        const name =
+          item[primaryField] ||
+          item.occasions ||
+          item.categories ||
+          item.card_types ||
+          item.occasion_name ||
+          item.category_name ||
+          item.card_type_name ||
+          item.name ||
+          item.title;
+
+        if (name) {
+          map.set(String(item.id), name);
+        }
+      }
+    });
+  }
+
+  let itemsToProcess = [];
+  if (Array.isArray(rawInput)) {
+    itemsToProcess = rawInput;
+  } else if (typeof rawInput === 'string' || typeof rawInput === 'number') {
+    itemsToProcess = String(rawInput)
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+  } else if (typeof rawInput === 'object') {
+    itemsToProcess = [rawInput];
+  }
+
+  if (itemsToProcess.length === 0) return [];
+
+  const names = itemsToProcess.map((el) => {
+    if (typeof el === 'object' && el !== null) {
+      const directName =
+        el[primaryField] ||
+        el.occasions ||
+        el.categories ||
+        el.card_types ||
+        el.occasion_name ||
+        el.category_name ||
+        el.card_type_name ||
+        el.name ||
+        el.title;
+      if (directName) return directName;
+      if (el.id !== undefined) return map.get(String(el.id)) || `ID: ${el.id}`;
+    }
+
+    const key = String(el);
+    return map.get(key) || `ID: ${key}`;
+  });
+
+  return names.filter(Boolean);
+}
+
+function toggleIdInString(currentIdsStr, id) {
+  const str = currentIdsStr ? String(currentIdsStr) : '';
+  const currentArray = str ? str.split(',').map((s) => s.trim()).filter(Boolean) : [];
+  const idStr = String(id);
+
+  let newArray;
+  if (currentArray.includes(idStr)) {
+    newArray = currentArray.filter((item) => item !== idStr);
+  } else {
+    newArray = [...currentArray, idStr];
+  }
+  return newArray.join(',');
+}
+
+function renderChips(names, variant = 'stone') {
+  if (!names || names.length === 0) {
+    return <span className="text-[#A39C93] text-xs font-mono">N/A</span>;
+  }
+
+  const variantStyles = {
+    amber: 'bg-[#FFF8EE] border border-[#F3E2C8] text-[#8A5A18]',
+    stone: 'bg-[#F6F4EE] border border-[#E2DDD3] text-[#4A443D]',
+    bronze: 'bg-[#FAF3F0] border border-[#EADAD5] text-[#7C4A3E]',
+  };
+
+  const style = variantStyles[variant] || variantStyles.stone;
+
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {names.map((name, idx) => (
+        <span
+          key={idx}
+          className={`inline-flex items-center rounded-md px-2.5 py-0.5 text-[11px] font-semibold tracking-wide shadow-2xs whitespace-nowrap ${style}`}
+        >
+          {name}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function getImageUrl(path) {
+  if (!path) return '';
+  if (typeof path !== 'string') return '';
+  if (path.startsWith('data:') || path.startsWith('blob:')) {
+    return path;
+  }
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    return path;
+  }
+
+  let cleanPath = path.trim().replace(/^\//, '');
+  if (cleanPath.startsWith('public/')) {
+    cleanPath = cleanPath.replace(/^public\//, '');
+  }
+
+  const baseImgUrl = 'https://sriparshwacards.in/crmapi/public/assets/images/product_images';
+  const siteUrl = 'https://sriparshwacards.in/crmapi/public';
+
+  if (cleanPath.startsWith('assets/images/product_images/')) {
+    return `${siteUrl}/${cleanPath}`;
+  }
+
+  cleanPath = cleanPath.replace(/^(product_images|products)\//, '');
+  return `${baseImgUrl}/${cleanPath}`;
+}
+
+function handleImageError(e, originalPath) {
+  if (!originalPath || typeof originalPath !== 'string') return;
+  if (originalPath.startsWith('data:') || originalPath.startsWith('blob:')) return;
+
+  const siteUrl = 'https://sriparshwacards.in/crmapi/public';
+  let clean = originalPath.trim().replace(/^\//, '').replace(/^public\//, '');
+  clean = clean.replace(/^(assets\/images\/product_images|product_images|products)\//, '');
+
+  const triedCount = parseInt(e.target.getAttribute('data-try-count') || '0', 10);
+  const candidates = [
+    `${siteUrl}/assets/images/product_images/${clean}`,
+    `${siteUrl}/storage/products/${clean}`,
+    `${siteUrl}/storage/${clean}`,
+    `${siteUrl}/products/${clean}`,
+    `${siteUrl}/uploads/products/${clean}`,
+    `${siteUrl}/${clean}`,
+  ];
+
+  if (triedCount < candidates.length) {
+    e.target.setAttribute('data-try-count', String(triedCount + 1));
+    const nextUrl = candidates[triedCount];
+    if (nextUrl && nextUrl !== e.target.src) {
+      e.target.src = nextUrl;
+    }
+  }
+}
+
+
+
+function MultiSelectDropdown({ label, itemsList = [], nameKey = 'name', selectedIdsStr = '', onChange, name }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const selectedIds = String(selectedIdsStr || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const toggleSelect = (idStr) => {
+    let nextIds;
+    if (selectedIds.includes(idStr)) {
+      nextIds = selectedIds.filter((id) => id !== idStr);
+    } else {
+      nextIds = [...selectedIds, idStr];
+    }
+    onChange({ target: { name, value: nextIds.join(',') } });
+  };
+
+  const removeId = (e, idStr) => {
+    e.stopPropagation();
+    const nextIds = selectedIds.filter((id) => id !== idStr);
+    onChange({ target: { name, value: nextIds.join(',') } });
+  };
+
+  const getItemName = (item) => {
+    return (
+      item[nameKey] ||
+      item.occasions ||
+      item.categories ||
+      item.card_types ||
+      item.occasion_name ||
+      item.category_name ||
+      item.card_type_name ||
+      item.name ||
+      item.title ||
+      `ID: ${item.id}`
+    );
+  };
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#8C857B]">
+        {label}
+      </label>
+
+      <div
+        onClick={() => setIsOpen((prev) => !prev)}
+        className="min-h-[42px] w-full cursor-pointer rounded-md border border-[#E2DDD5] bg-[#FAF8F5] p-2 text-xs text-[#1A1817] transition hover:border-[#1A1817] flex flex-wrap items-center gap-1.5 focus:bg-white select-none"
+      >
+        {selectedIds.length > 0 ? (
+          selectedIds.map((idStr) => {
+            const foundItem = itemsList.find((it) => String(it.id) === idStr);
+            const itemName = foundItem ? getItemName(foundItem) : `ID: ${idStr}`;
+            return (
+              <span
+                key={idStr}
+                className="inline-flex items-center gap-1 rounded bg-[#EFECE6] border border-[#D5CFC5] px-2 py-0.5 text-[11px] font-medium text-[#1A1817]"
+              >
+                {itemName}
+                <button
+                  type="button"
+                  onClick={(e) => removeId(e, idStr)}
+                  className="hover:text-red-600 font-bold ml-0.5 cursor-pointer"
+                >
+                  ×
+                </button>
+              </span>
+            );
+          })
+        ) : (
+          <span className="text-[#A39C93]">Select {label.toLowerCase()}...</span>
+        )}
+
+        <span className="ml-auto text-[#8C857B] pointer-events-none pl-1 text-[10px]">▼</span>
+      </div>
+
+      {isOpen && (
+        <div className="absolute left-0 right-0 top-full z-40 mt-1 max-h-48 overflow-y-auto rounded-md border border-[#E2DDD5] bg-white p-1.5 shadow-lg select-none">
+          {itemsList.length > 0 ? (
+            itemsList.map((item) => {
+              const idStr = String(item.id);
+              const isSelected = selectedIds.includes(idStr);
+              const itemName = getItemName(item);
+
+              return (
+                <div
+                  key={item.id}
+                  onClick={() => toggleSelect(idStr)}
+                  className={`flex cursor-pointer items-center justify-between rounded px-3 py-2 text-xs transition ${isSelected ? 'bg-[#FAF5EC] font-semibold text-[#8A5A18]' : 'text-[#1A1817] hover:bg-[#F7F5F0]'
+                    }`}
+                >
+                  <span>{itemName}</span>
+                  {isSelected && <span className="text-[#8A5A18] font-bold">✓</span>}
+                </div>
+              );
+            })
+          ) : (
+            <div className="px-3 py-2 text-xs text-[#8C857B]">No options available</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function ProductView({
   form,
@@ -33,6 +311,10 @@ function ProductView({
   categoriesList = [],
   cardTypesList = [],
   placementsList = [],
+  currentPage = 1,
+  onPageChange,
+  totalPages = 1,
+  totalCount = 0,
   onAddImageRow,
   onRemoveImageRow,
   onImageChange,
@@ -44,6 +326,7 @@ function ProductView({
   const [columnsOpen, setColumnsOpen] = useState(false);
   const [visibleCols, setVisibleCols] = useState({
     slno: true,
+    image: true,
     name: true,
     made_of: true,
     occasions: true,
@@ -51,7 +334,83 @@ function ProductView({
     card_types: true,
     status: true,
   });
+  const [selectedTiers, setSelectedTiers] = useState(['Standard']);
+  const [selectedTraditions, setSelectedTraditions] = useState(['Hindu Wedding']);
+  const [selectedStyles, setSelectedStyles] = useState(['Traditional']);
+  const [previewModalUrl, setPreviewModalUrl] = useState(null);
+
+  const toggleSelection = (item, currentList, setList) => {
+    if (currentList.includes(item)) {
+      setList(currentList.filter((i) => i !== item));
+    } else {
+      setList([...currentList, item]);
+    }
+  };
+
   const dropdownRef = useRef(null);
+
+  const handleFileChange = async (e, targetIdx = null) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    // Read all selected files concurrently into Data URLs
+    const readPromises = files.map((file) => {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (event) => resolve(event.target.result);
+        reader.readAsDataURL(file);
+      });
+    });
+
+    const base64Urls = await Promise.all(readPromises);
+
+    let currentImgs = [...(form.images || [])];
+
+    // If initial array is just one empty object [{ product_images: '' }]
+    if (currentImgs.length === 1 && !currentImgs[0].product_images) {
+      currentImgs = [];
+    }
+
+    if (targetIdx !== null && targetIdx !== undefined) {
+      // Replacing targetIdx with first image, and appending remaining picked files
+      base64Urls.forEach((url, i) => {
+        const idxToUpdate = targetIdx + i;
+        const rawFile = files[i];
+        if (idxToUpdate < currentImgs.length) {
+          currentImgs[idxToUpdate] = {
+            ...currentImgs[idxToUpdate],
+            product_images: url,
+            _file: rawFile,
+          };
+        } else {
+          currentImgs.push({
+            product_images: url,
+            _file: rawFile,
+            product_images_sort_order: String(currentImgs.length + 1),
+          });
+        }
+      });
+    } else {
+      // Append all new multi-selected images
+      base64Urls.forEach((url, i) => {
+        const rawFile = files[i];
+        currentImgs.push({
+          product_images: url,
+          _file: rawFile,
+          product_images_sort_order: String(currentImgs.length + 1),
+        });
+      });
+    }
+
+    onChange({
+      target: {
+        name: 'images',
+        value: currentImgs,
+      },
+    });
+
+    if (e.target) e.target.value = '';
+  };
 
   useEffect(() => {
     function handleClickOutside(e) {
@@ -63,6 +422,8 @@ function ProductView({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const itemsPerPage = 10;
+
   const toggleCol = (key) => {
     setVisibleCols((prev) => ({ ...prev, [key]: !prev[key] }));
   };
@@ -70,11 +431,28 @@ function ProductView({
   const filteredItems = items.filter((item) => {
     const name = item.product_name || item.name || '';
     const madeOf = item.product_made_of || '';
+    const occNames = getNameArrayFromIds(item.occasions_ids || item.occasions, occasionsList, 'occasions').join(' ');
+    const catNames = getNameArrayFromIds(item.categories_ids || item.categories, categoriesList, 'categories').join(' ');
+    const ctNames = getNameArrayFromIds(item.card_types_ids || item.card_types, cardTypesList, 'card_types').join(' ');
+
+    const q = searchQuery.toLowerCase();
     return (
-      name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      madeOf.toLowerCase().includes(searchQuery.toLowerCase())
+      name.toLowerCase().includes(q) ||
+      madeOf.toLowerCase().includes(q) ||
+      occNames.toLowerCase().includes(q) ||
+      catNames.toLowerCase().includes(q) ||
+      ctNames.toLowerCase().includes(q)
     );
   });
+
+  // If server pagination is handled via onPageChange, use items directly (which are 10 items for current page)
+  const isServerPaginated = typeof onPageChange === 'function';
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedItems = isServerPaginated ? filteredItems : filteredItems.slice(startIndex, startIndex + itemsPerPage);
+  const calculatedTotalPages = isServerPaginated ? totalPages : Math.max(1, Math.ceil(filteredItems.length / itemsPerPage));
+  const displayTotal = isServerPaginated ? (totalCount || items.length) : filteredItems.length;
+  const startNum = startIndex + 1;
+  const endNum = isServerPaginated ? Math.min(currentPage * itemsPerPage, displayTotal) : Math.min(startIndex + itemsPerPage, filteredItems.length);
 
   return (
     <div className="flex min-h-screen bg-[#F7F5F0] text-[#1A1817] font-sans">
@@ -94,24 +472,16 @@ function ProductView({
             <button
               type="button"
               onClick={onProfile}
-              className="flex items-center gap-3 rounded-full bg-white px-3 py-1.5 shadow-sm border border-[#E5E0D8] hover:border-[#C99C4B] transition cursor-pointer text-left"
+              className="flex items-center gap-3 rounded-lg bg-white px-3 py-1.5 shadow-sm border border-[#E5E0D8] hover:border-[#C99C4B] transition cursor-pointer text-left"
               title="View Profile"
             >
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#EFECE6] text-xs font-serif font-bold text-[#1A1817] border border-[#D5CFC5]">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#EFECE6] text-xs font-serif font-bold text-[#1A1817] border border-[#D5CFC5]">
                 EA
               </div>
               <div className="pr-1">
                 <p className="text-xs font-bold text-[#1A1817] leading-tight">Admin User</p>
                 <p className="text-[10px] text-[#8C857B] leading-tight">Manager</p>
               </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={onLogout}
-              className="rounded-none bg-[#1A1817] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-white transition hover:bg-[#38332E] cursor-pointer"
-            >
-              Logout
             </button>
           </div>
         </div>
@@ -147,11 +517,10 @@ function ProductView({
                 <button
                   type="button"
                   onClick={() => setColumnsOpen((o) => !o)}
-                  className={`flex items-center gap-2 rounded-md border px-4 py-2 text-xs font-semibold uppercase tracking-wider transition shadow-xs cursor-pointer ${
-                    columnsOpen
+                  className={`flex items-center gap-2 rounded-md border px-4 py-2 text-xs font-semibold uppercase tracking-wider transition shadow-xs cursor-pointer ${columnsOpen
                       ? 'border-[#1A1817] bg-[#F5CE93] text-[#1A1817]'
                       : 'border-[#E2DDD5] bg-white text-[#59534C] hover:bg-[#F7F5F0]'
-                  }`}
+                    }`}
                 >
                   <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <rect x="3" y="3" width="7" height="18" rx="1" />
@@ -188,7 +557,7 @@ function ProductView({
               <button
                 type="button"
                 onClick={onOpenModal}
-                className="flex items-center gap-2 bg-[#1A1817] hover:bg-[#38332E] px-5 py-2 text-xs font-semibold uppercase tracking-widest text-white transition shadow-xs cursor-pointer"
+                className="flex items-center gap-2 rounded-lg bg-[#1A1817] hover:bg-[#38332E] px-5 py-2 text-xs font-semibold uppercase tracking-widest text-white transition shadow-xs cursor-pointer"
               >
                 <span className="text-sm font-bold leading-none">+</span>
                 ADD NEW PRODUCT
@@ -202,11 +571,12 @@ function ProductView({
               <thead className="border-b border-[#E2DDD5] bg-[#EFECE6]">
                 <tr className="text-[11px] font-semibold uppercase tracking-wider text-[#59534C]">
                   {visibleCols.slno && <th className="w-16 px-6 py-3.5">Sl.no</th>}
+                  {visibleCols.image && <th className="w-20 px-6 py-3.5">Image</th>}
                   {visibleCols.name && <th className="px-6 py-3.5">Product Name</th>}
                   {visibleCols.made_of && <th className="px-6 py-3.5">Made Of</th>}
                   {visibleCols.occasions && <th className="px-6 py-3.5">Occasion IDs</th>}
                   {visibleCols.categories && <th className="px-6 py-3.5">Category IDs</th>}
-                  {visibleCols.card_types && <th className="px-6 py-3.5">Card Type IDs</th>}
+                  {/* {visibleCols.card_types && <th className="px-6 py-3.5">Card Type IDs</th>} */}
                   {visibleCols.status && <th className="w-32 px-6 py-3.5">Status</th>}
                   <th className="w-28 px-6 py-3.5 text-right">Actions</th>
                 </tr>
@@ -219,30 +589,70 @@ function ProductView({
                       Loading products...
                     </td>
                   </tr>
-                ) : filteredItems.length > 0 ? (
-                  filteredItems.map((item, index) => {
+                ) : paginatedItems.length > 0 ? (
+                  paginatedItems.map((item, index) => {
                     const status = item.product_status || item.status || 'Active';
+                    const rawImgs = item.images || item.product_images || item.gallery || [];
+                    const firstImgObj = Array.isArray(rawImgs) && rawImgs.length > 0 ? rawImgs[0] : null;
+                    const imgPath = typeof firstImgObj === 'string'
+                      ? firstImgObj
+                      : firstImgObj?.product_images || firstImgObj?.image || firstImgObj?.url || firstImgObj?.file_path || item.image || '';
+                    const fullUrl = getImageUrl(imgPath);
+
                     return (
                       <tr key={item.id} className="hover:bg-[#FAF8F5] transition-colors">
-                        {visibleCols.slno && <td className="px-6 py-4 font-mono text-[#8C857B]">{index + 1}</td>}
+                        {visibleCols.slno && <td className="px-6 py-4 font-mono text-[#8C857B]">{startIndex + index + 1}</td>}
+                        {visibleCols.image && (
+                          <td className="px-6 py-3">
+                            {fullUrl ? (
+                              <div className="h-12 w-12 rounded-lg border border-[#E2DDD5] bg-[#FAF8F5] overflow-hidden shadow-xs flex items-center justify-center">
+                                <img
+                                  src={fullUrl}
+                                  alt={item.product_name || 'Product'}
+                                  referrerPolicy="no-referrer"
+                                  onError={(e) => handleImageError(e, imgPath)}
+                                  className="h-full w-full object-cover cursor-pointer hover:scale-105 transition-transform duration-200"
+                                  onClick={() => setPreviewModalUrl(fullUrl)}
+                                  title="Click to preview full-size image"
+                                />
+                              </div>
+                            ) : (
+                              <div className="h-12 w-12 rounded-lg border border-[#E2DDD5] bg-[#FAF8F5] flex flex-col items-center justify-center text-[10px] text-[#A39C93]">
+                                <span>No img</span>
+                              </div>
+                            )}
+                          </td>
+                        )}
                         {visibleCols.name && (
                           <td className="px-6 py-4 font-bold text-[#1A1817]">
                             {item.product_name}
                           </td>
                         )}
                         {visibleCols.made_of && <td className="px-6 py-4 text-[#59534C]">{item.product_made_of || 'N/A'}</td>}
-                        {visibleCols.occasions && <td className="px-6 py-4 text-[#8C857B] font-mono">{item.occasions_ids || 'N/A'}</td>}
-                        {visibleCols.categories && <td className="px-6 py-4 text-[#8C857B] font-mono">{item.categories_ids || 'N/A'}</td>}
-                        {visibleCols.card_types && <td className="px-6 py-4 text-[#8C857B] font-mono">{item.card_types_ids || 'N/A'}</td>}
+                        {visibleCols.occasions && (
+                          <td className="px-6 py-4">
+                            {renderChips(getNameArrayFromIds(item.occasions_ids || item.occasions, occasionsList, 'occasions'), 'amber')}
+                          </td>
+                        )}
+                        {visibleCols.categories && (
+                          <td className="px-6 py-4">
+                            {renderChips(getNameArrayFromIds(item.categories_ids || item.categories, categoriesList, 'categories'), 'stone')}
+                          </td>
+                        )}
+                        {/* {visibleCols.card_types && (
+                          <td className="px-6 py-4">
+                            {renderChips(getNameArrayFromIds(item.card_types_ids || item.card_types, cardTypesList, 'card_types'), 'bronze')}
+                          </td>
+                        )} */}
                         {visibleCols.status && (
                           <td className="px-6 py-4">
                             <button
                               type="button"
                               onClick={() => onToggleStatus && onToggleStatus(item.id, status)}
-                              className={`inline-block border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider cursor-pointer transition ${
+                              className={`inline-block border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-md cursor-pointer transition ${
                                 status === 'Active'
-                                  ? 'border-[#1A1817] text-[#1A1817] bg-white hover:bg-[#F5CE93]'
-                                  : 'border-[#C5C0B6] text-[#8C857B] bg-white hover:bg-[#EFECE6]'
+                                  ? 'border-emerald-500 text-emerald-700 bg-emerald-50 hover:bg-emerald-100'
+                                  : 'border-rose-400 text-rose-700 bg-rose-50 hover:bg-rose-100'
                               }`}
                             >
                               {status}
@@ -262,19 +672,6 @@ function ProductView({
                                 <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4Z" />
                               </svg>
                             </button>
-                            {onDelete && (
-                              <button
-                                type="button"
-                                onClick={() => onDelete(item.id)}
-                                className="p-1.5 text-[#8C857B] hover:text-red-600 transition cursor-pointer"
-                                title="Delete Product"
-                              >
-                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75">
-                                  <polyline points="3 6 5 6 21 6" />
-                                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                                </svg>
-                              </button>
-                            )}
                           </div>
                         </td>
                       </tr>
@@ -290,13 +687,61 @@ function ProductView({
               </tbody>
             </table>
           </div>
+
+          {/* ── PAGINATION BAR ── */}
+          <div className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between border-t border-[#F0ECE1] bg-[#FAF8F5]">
+            <p className="text-xs text-[#8C857B]">
+              Showing <span className="font-semibold text-[#1A1817]">{displayTotal > 0 ? startNum : 0}</span> to{' '}
+              <span className="font-semibold text-[#1A1817]">{endNum}</span> of{' '}
+              <span className="font-semibold text-[#1A1817]">{displayTotal}</span> products
+            </p>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => onPageChange && onPageChange(currentPage - 1)}
+                disabled={currentPage <= 1}
+                className="inline-flex items-center gap-1 rounded-lg border border-[#E2DDD5] bg-white px-3.5 py-1.5 text-xs font-semibold text-[#1A1817] shadow-xs hover:bg-[#EFECE6] disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                </svg>
+                Previous
+              </button>
+
+              <div className="flex items-center gap-1 px-3 text-xs font-semibold text-[#59534C]">
+                <span>Page</span>
+                <span className="text-[#1A1817] font-bold">{currentPage}</span>
+                <span>of</span>
+                <span className="text-[#1A1817] font-bold">{calculatedTotalPages}</span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => onPageChange && onPageChange(currentPage + 1)}
+                disabled={currentPage >= calculatedTotalPages}
+                className="inline-flex items-center gap-1 rounded-lg border border-[#E2DDD5] bg-white px-3.5 py-1.5 text-xs font-semibold text-[#1A1817] shadow-xs hover:bg-[#EFECE6] disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
+              >
+                Next
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
+          </div>
         </div>
       </main>
 
       {/* ─────────── LUXURY REDESIGNED MODAL (Image 2 Parity) ─────────── */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="relative my-6 w-full max-w-5xl rounded-xl bg-[#F7F5F0] p-8 shadow-2xl border border-[#E2DDD5] max-h-[92vh] overflow-y-auto">
+        <div
+          onClick={onCloseModal}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 overflow-y-auto cursor-pointer"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative my-6 w-full max-w-5xl rounded-xl bg-[#F7F5F0] p-8 shadow-2xl border border-[#E2DDD5] max-h-[92vh] overflow-y-auto cursor-default"
+          >
             {/* Top Modal Header Bar (Image 2 style) */}
             <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-[#E2DDD5] pb-6">
               <div>
@@ -309,28 +754,17 @@ function ProductView({
               </div>
 
               {/* Action Buttons top right */}
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
                 <button
                   type="button"
                   onClick={onCloseModal}
-                  className="text-xs font-semibold uppercase tracking-widest text-[#59534C] hover:text-[#1A1817] transition cursor-pointer"
+                  className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#E2DDD5] bg-white text-[#59534C] hover:bg-[#EFECE6] hover:text-[#1A1817] transition cursor-pointer"
+                  title="Close modal"
+                  aria-label="Close modal"
                 >
-                  CANCEL
-                </button>
-                <button
-                  type="button"
-                  onClick={onCloseModal}
-                  className="border border-[#2D2926] bg-white px-5 py-2.5 text-xs font-bold uppercase tracking-widest text-[#1A1817] hover:bg-[#EFECE6] transition cursor-pointer"
-                >
-                  SAVE DRAFT
-                </button>
-                <button
-                  type="button"
-                  onClick={onSubmit}
-                  disabled={submitting}
-                  className="bg-[#1A1817] px-6 py-2.5 text-xs font-bold uppercase tracking-widest text-white hover:bg-[#38332E] transition shadow-xs cursor-pointer disabled:opacity-50"
-                >
-                  {submitting ? 'SAVING...' : 'PUBLISH PRODUCT'}
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
                 </button>
               </div>
             </div>
@@ -376,30 +810,9 @@ function ProductView({
                       className="w-full rounded-md border border-[#E2DDD5] bg-[#FAF8F5] px-4 py-3 text-sm text-[#1A1817] outline-none placeholder:text-[#A39C93] focus:border-[#1A1817] focus:bg-white transition"
                     />
                   </div>
-
-                  {/* Description with WYSIWYG rich toolbar header (Image 2) */}
-                  <div>
-                    <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-[#8C857B]">
-                      DESCRIPTION
-                    </label>
-                    <div className="rounded-md border border-[#E2DDD5] bg-[#FAF8F5]">
-                      {/* Rich Editor Bar */}
-                      <div className="flex items-center gap-4 border-b border-[#E2DDD5] px-4 py-2 text-xs font-semibold text-[#59534C]">
-                        <button type="button" className="font-bold hover:text-[#1A1817]">B</button>
-                        <button type="button" className="italic hover:text-[#1A1817]">I</button>
-                        <button type="button" className="hover:text-[#1A1817]">≡</button>
-                        <button type="button" className="hover:text-[#1A1817]">1.</button>
-                      </div>
-                      <textarea
-                        rows={5}
-                        placeholder="Detail the craftsmanship, paper quality, and design inspiration..."
-                        className="w-full bg-transparent p-4 text-xs text-[#1A1817] outline-none placeholder:text-[#A39C93] resize-y"
-                      />
-                    </div>
-                  </div>
                 </div>
 
-                {/* 2. Media Gallery Card (Image 2 style) */}
+                {/* 2. Media Gallery Card */}
                 <div className="rounded-xl border border-[#E8E3DA] bg-white p-6 shadow-xs">
                   <div className="mb-6 flex items-baseline justify-between">
                     <h3 className="font-serif text-2xl font-normal text-[#1A1817]">Media Gallery</h3>
@@ -408,24 +821,41 @@ function ProductView({
 
                   {/* Primary Image dropzone + Guidelines Grid */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                    {/* Dropzone (2 cols) */}
-                    <div className="md:col-span-2 flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-[#E2DDD5] bg-[#FAF8F5] p-8 text-center">
-                      <div className="mb-3 text-[#A39C93]">
-                        <svg className="mx-auto h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.2">
-                          <rect x="3" y="3" width="18" height="18" rx="2" />
-                          <circle cx="8.5" cy="8.5" r="1.5" />
-                          <polyline points="21 15 16 10 5 21" />
-                        </svg>
+                    {/* Primary Image Preview or Dropzone */}
+                    {form.images?.[0]?.product_images ? (
+                      <div className="md:col-span-2 relative h-48 w-full rounded-lg overflow-hidden border border-[#E2DDD5] bg-black/5">
+                        <img
+                          src={getImageUrl(form.images[0].product_images)}
+                          alt="Primary Product"
+                          referrerPolicy="no-referrer"
+                          onClick={() => setPreviewModalUrl(getImageUrl(form.images[0].product_images))}
+                          onError={(e) => handleImageError(e, form.images[0].product_images)}
+                          className="h-full w-full object-cover cursor-pointer hover:opacity-90 transition"
+                          title="Click to preview full-size image"
+                        />
                       </div>
-                      <p className="text-xs font-semibold text-[#1A1817]">Drag & drop primary image</p>
-                      <button
-                        type="button"
-                        onClick={onAddImageRow}
-                        className="mt-4 border border-[#2D2926] bg-white px-5 py-1.5 text-xs font-semibold text-[#1A1817] hover:bg-[#EFECE6] transition cursor-pointer"
-                      >
-                        Browse
-                      </button>
-                    </div>
+                    ) : (
+                      <label className="md:col-span-2 flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-[#E2DDD5] bg-[#FAF8F5] p-8 text-center cursor-pointer hover:border-[#1A1817] transition select-none">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          className="hidden"
+                          onChange={(e) => handleFileChange(e, 0)}
+                        />
+                        <div className="mb-3 text-[#A39C93]">
+                          <svg className="mx-auto h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.2">
+                            <rect x="3" y="3" width="18" height="18" rx="2" />
+                            <circle cx="8.5" cy="8.5" r="1.5" />
+                            <polyline points="21 15 16 10 5 21" />
+                          </svg>
+                        </div>
+                        <p className="text-xs font-semibold text-[#1A1817]">Drag & drop or click to upload primary image</p>
+                        <span className="mt-4 inline-block border border-[#2D2926] bg-white px-5 py-1.5 text-xs font-semibold text-[#1A1817] hover:bg-[#EFECE6] transition rounded-lg">
+                          Browse
+                        </span>
+                      </label>
+                    )}
 
                     {/* Guidelines Box */}
                     <div className="rounded-lg bg-[#F7F5F0] p-4 text-xs text-[#59534C] space-y-3">
@@ -451,31 +881,69 @@ function ProductView({
                       <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8C857B]">
                         SUPPORTING IMAGES
                       </p>
-                      <button
-                        type="button"
-                        onClick={onAddImageRow}
-                        className="text-xs font-bold text-[#1A1817] hover:underline"
-                      >
-                        + ADD IMAGE
-                      </button>
+                      <label className="inline-flex items-center gap-1.5 rounded-lg border border-[#2D2926] bg-white px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider text-[#1A1817] hover:bg-[#EFECE6] transition shadow-xs cursor-pointer select-none">
+                        <span className="text-sm leading-none">+</span>
+                        ADD IMAGE
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          className="hidden"
+                          onChange={(e) => handleFileChange(e)}
+                        />
+                      </label>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       {(form.images || []).map((img, idx) => (
                         <div key={idx} className="rounded-lg border border-[#E2DDD5] bg-[#FAF8F5] p-3 flex flex-col justify-between">
-                          <input
-                            type="text"
-                            placeholder="Image URL / Base64"
-                            value={img.product_images || ''}
-                            onChange={(e) => onImageChange(idx, 'product_images', e.target.value)}
-                            className="w-full rounded border border-[#E2DDD5] bg-white p-2 text-xs text-[#1A1817] mb-2"
-                          />
-                          <div className="flex items-center justify-between text-[11px]">
-                            <span className="text-[#8C857B]">Sort: {img.product_images_sort_order || idx + 1}</span>
+                          {img.product_images ? (
+                            <div className="relative h-32 w-full rounded-md overflow-hidden border border-[#E2DDD5] bg-black/5">
+                              <img
+                                src={getImageUrl(img.product_images)}
+                                alt={`Product image ${idx + 1}`}
+                                referrerPolicy="no-referrer"
+                                onClick={() => setPreviewModalUrl(getImageUrl(img.product_images))}
+                                onError={(e) => handleImageError(e, img.product_images)}
+                                className="h-full w-full object-cover cursor-pointer hover:opacity-90 transition"
+                                title="Click to preview full-size image"
+                              />
+                            </div>
+                          ) : (
+                            <label className="h-32 w-full rounded-md border-2 border-dashed border-[#E2DDD5] bg-white flex flex-col items-center justify-center text-xs text-[#8C857B] cursor-pointer hover:border-[#1A1817] transition select-none">
+                              <span className="text-[#1A1817] font-semibold text-xs">+ Upload Image</span>
+                              <span className="text-[10px] text-[#8C857B] mt-0.5">Click to select file</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => handleFileChange(e, idx)}
+                              />
+                            </label>
+                          )}
+
+                          <div className="flex items-center justify-between text-[11px] pt-2 gap-1">
+                            <span className="text-[#8C857B] text-[10px]">Sort: {img.product_images_sort_order || idx + 1}</span>
+                            <select
+                              value={img.product_images_status || 'Active'}
+                              onChange={(e) => {
+                                const newImgs = [...(form.images || [])];
+                                newImgs[idx] = { ...newImgs[idx], product_images_status: e.target.value };
+                                onChange({ target: { name: 'images', value: newImgs } });
+                              }}
+                              className={`rounded border px-1.5 py-0.5 text-[10px] font-bold outline-none cursor-pointer ${
+                                (img.product_images_status || 'Active') === 'Active'
+                                  ? 'border-emerald-500 text-emerald-700 bg-emerald-50'
+                                  : 'border-rose-400 text-rose-700 bg-rose-50'
+                              }`}
+                            >
+                              <option value="Active" className="text-emerald-700 bg-white font-bold">Active</option>
+                              <option value="Inactive" className="text-rose-700 bg-white font-bold">Inactive</option>
+                            </select>
                             <button
                               type="button"
                               onClick={() => onRemoveImageRow(idx, img.id)}
-                              className="text-red-600 font-bold hover:underline"
+                              className="text-red-600 font-bold hover:underline cursor-pointer text-[10px]"
                             >
                               Remove
                             </button>
@@ -510,133 +978,250 @@ function ProductView({
                       <span>Featured Product</span>
                     </label>
                   </div>
-
-                  {/* Backend Placement Row items binding */}
-                  <div className="mt-6 border-t border-[#F0ECE1] pt-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#8C857B]">PLACEMENT DATA IDS</span>
-                      <button type="button" onClick={onAddPlacementRow} className="text-[10px] font-bold text-[#1A1817]">+ ADD ROW</button>
-                    </div>
-                    {(form.placements || []).map((plc, idx) => (
-                      <div key={idx} className="flex items-center gap-2 mb-2">
-                        <input
-                          type="text"
-                          placeholder="Placement ID (e.g. 1)"
-                          value={plc.placements_id || ''}
-                          onChange={(e) => onPlacementChange(idx, 'placements_id', e.target.value)}
-                          className="flex-1 rounded border border-[#E2DDD5] bg-[#FAF8F5] p-1.5 text-xs text-[#1A1817]"
-                        />
-                        <button type="button" onClick={() => onRemovePlacementRow(idx, plc.id)} className="text-xs text-red-600">✕</button>
-                      </div>
-                    ))}
-                  </div>
                 </div>
 
-                {/* 2. Categorization Card (Image 2) */}
-                <div className="rounded-xl border border-[#E8E3DA] bg-white p-6 shadow-xs">
-                  <h3 className="font-serif text-2xl font-normal text-[#1A1817] mb-6">Categorization</h3>
+                {/* 2. Categorization Card */}
+                <div className="rounded-xl border border-[#E8E3DA] bg-white p-6 shadow-xs space-y-6">
+                  <h3 className="font-serif text-2xl font-normal text-[#1A1817]">Categorization</h3>
 
                   {/* BY TIER */}
-                  <div className="mb-6">
+                  <div>
                     <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-[#8C857B]">
                       BY TIER
                     </label>
                     <div className="grid grid-cols-2 gap-2 text-xs">
-                      {['Standard', 'Premium', 'Luxury', 'Exclusive'].map((tier) => (
-                        <button
-                          key={tier}
-                          type="button"
-                          className="rounded-md border border-[#E2DDD5] bg-[#FAF8F5] py-2 text-center font-medium text-[#1A1817] hover:border-[#1A1817] transition cursor-pointer"
-                        >
-                          {tier}
-                        </button>
-                      ))}
+                      {['Standard', 'Premium', 'Luxury', 'Exclusive'].map((tier) => {
+                        const isSelected = selectedTiers.includes(tier);
+                        return (
+                          <button
+                            key={tier}
+                            type="button"
+                            onClick={() => toggleSelection(tier, selectedTiers, setSelectedTiers)}
+                            className={`rounded-lg border py-2 text-center font-medium transition cursor-pointer ${isSelected
+                                ? 'border-[#1A1817] bg-[#1A1817] text-white shadow-xs'
+                                : 'border-[#E2DDD5] bg-[#FAF8F5] text-[#1A1817] hover:border-[#1A1817]'
+                              }`}
+                          >
+                            {tier}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
                   {/* BY TRADITION */}
-                  <div className="mb-6">
+                  <div>
                     <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-[#8C857B]">
                       BY TRADITION
                     </label>
                     <div className="space-y-2.5 text-xs text-[#1A1817]">
-                      {['Hindu Wedding', 'Sikh Wedding', 'Islamic Wedding', 'Christian Wedding'].map((trad) => (
-                        <label key={trad} className="flex items-center gap-3 cursor-pointer select-none">
-                          <input type="checkbox" className="h-4 w-4 rounded border-[#C5C0B6] accent-[#1A1817]" />
-                          <span>{trad}</span>
-                        </label>
-                      ))}
+                      {['Hindu Wedding', 'Sikh Wedding', 'Islamic Wedding', 'Christian Wedding'].map((trad) => {
+                        const isChecked = selectedTraditions.includes(trad);
+                        return (
+                          <label key={trad} className="flex items-center gap-3 cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => toggleSelection(trad, selectedTraditions, setSelectedTraditions)}
+                              className="h-4 w-4 rounded border-[#C5C0B6] accent-[#1A1817]"
+                            />
+                            <span className={isChecked ? 'font-semibold text-[#1A1817]' : 'text-[#59534C]'}>{trad}</span>
+                          </label>
+                        );
+                      })}
                     </div>
                   </div>
 
                   {/* BY STYLE */}
-                  <div className="mb-6">
+                  <div>
                     <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-[#8C857B]">
                       BY STYLE
                     </label>
                     <div className="flex flex-wrap gap-2 text-xs">
-                      {['Floral', 'Minimalist', 'Traditional', 'Modern', 'Vintage'].map((style) => (
-                        <span
-                          key={style}
-                          className="rounded-full border border-[#D5CFC5] px-3 py-1 font-medium text-[#1A1817] hover:bg-[#F5CE93] hover:border-[#1A1817] transition cursor-pointer"
-                        >
-                          {style}
-                        </span>
-                      ))}
+                      {['Floral', 'Minimalist', 'Traditional', 'Modern', 'Vintage'].map((style) => {
+                        const isSelected = selectedStyles.includes(style);
+                        return (
+                          <button
+                            key={style}
+                            type="button"
+                            onClick={() => toggleSelection(style, selectedStyles, setSelectedStyles)}
+                            className={`rounded-lg border px-3 py-1.5 font-medium transition cursor-pointer ${isSelected
+                                ? 'border-[#1A1817] bg-[#1A1817] text-white shadow-xs'
+                                : 'border-[#D5CFC5] bg-white text-[#1A1817] hover:bg-[#F5CE93] hover:border-[#1A1817]'
+                              }`}
+                          >
+                            {style}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
-                  {/* Specific ID bindings */}
-                  <div className="border-t border-[#F0ECE1] pt-4 space-y-3">
-                    <div>
-                      <label className="block text-[10px] font-bold uppercase text-[#8C857B]">Occasions IDs</label>
-                      <input
-                        type="text"
-                        name="occasions_ids"
-                        value={form.occasions_ids || ''}
-                        onChange={onChange}
-                        placeholder="e.g. 1,2"
-                        className="w-full rounded border border-[#E2DDD5] bg-[#FAF8F5] p-2 text-xs text-[#1A1817]"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold uppercase text-[#8C857B]">Categories IDs</label>
-                      <input
-                        type="text"
-                        name="categories_ids"
-                        value={form.categories_ids || ''}
-                        onChange={onChange}
-                        placeholder="e.g. 1"
-                        className="w-full rounded border border-[#E2DDD5] bg-[#FAF8F5] p-2 text-xs text-[#1A1817]"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold uppercase text-[#8C857B]">Card Types IDs</label>
-                      <input
-                        type="text"
-                        name="card_types_ids"
-                        value={form.card_types_ids || ''}
-                        onChange={onChange}
-                        placeholder="e.g. 1"
-                        className="w-full rounded border border-[#E2DDD5] bg-[#FAF8F5] p-2 text-xs text-[#1A1817]"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold uppercase text-[#8C857B]">Status</label>
-                      <select
-                        name="product_status"
-                        value={form.product_status || 'Active'}
-                        onChange={onChange}
-                        className="w-full rounded border border-[#E2DDD5] bg-[#FAF8F5] p-2 text-xs text-[#1A1817]"
-                      >
-                        <option value="Active">Active</option>
-                        <option value="Inactive">Inactive</option>
-                      </select>
-                    </div>
+                  {/* OCCASIONS */}
+                  <div className="border-t border-[#F0ECE1] pt-5">
+                    <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-[#8C857B]">
+                      OCCASIONS
+                    </label>
+                    {occasionsList && occasionsList.length > 0 ? (
+                      <div className="flex flex-wrap gap-2 text-xs">
+                        {occasionsList.map((occ) => {
+                          const occIdStr = String(occ.id);
+                          const isSelected = (form.occasions_ids || '').split(',').map(s => s.trim()).includes(occIdStr);
+                          const occName = occ.occasions || occ.occasion_name || occ.name || `Occasion #${occ.id}`;
+                          return (
+                            <button
+                              key={occ.id}
+                              type="button"
+                              onClick={() => {
+                                const next = toggleIdInString(form.occasions_ids, occ.id);
+                                onChange({ target: { name: 'occasions_ids', value: next } });
+                              }}
+                              className={`rounded-lg px-3 py-1.5 font-medium transition cursor-pointer border ${isSelected
+                                  ? 'bg-[#1A1817] text-white border-[#1A1817] shadow-xs'
+                                  : 'bg-[#FAF8F5] text-[#1A1817] border-[#E2DDD5] hover:border-[#1A1817]'
+                                }`}
+                            >
+                              {occName} {isSelected && '✓'}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-[#8C857B]">No occasions found.</p>
+                    )}
+                  </div>
+
+                  {/* CATEGORIES */}
+                  <div className="border-t border-[#F0ECE1] pt-5">
+                    <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-[#8C857B]">
+                      CATEGORIES
+                    </label>
+                    {categoriesList && categoriesList.length > 0 ? (
+                      <div className="flex flex-wrap gap-2 text-xs">
+                        {categoriesList.map((cat) => {
+                          const catIdStr = String(cat.id);
+                          const isSelected = (form.categories_ids || '').split(',').map(s => s.trim()).includes(catIdStr);
+                          const catName = cat.categories || cat.category_name || cat.name || `Category #${cat.id}`;
+                          return (
+                            <button
+                              key={cat.id}
+                              type="button"
+                              onClick={() => {
+                                const next = toggleIdInString(form.categories_ids, cat.id);
+                                onChange({ target: { name: 'categories_ids', value: next } });
+                              }}
+                              className={`rounded-lg px-3 py-1.5 font-medium transition cursor-pointer border ${isSelected
+                                  ? 'bg-[#1A1817] text-white border-[#1A1817] shadow-xs'
+                                  : 'bg-[#FAF8F5] text-[#1A1817] border-[#E2DDD5] hover:border-[#1A1817]'
+                                }`}
+                            >
+                              {catName} {isSelected && '✓'}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-[#8C857B]">No categories found.</p>
+                    )}
+                  </div>
+
+                  {/* CARD TYPES
+                  <div className="border-t border-[#F0ECE1] pt-5">
+                    <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-[#8C857B]">
+                      CARD TYPES
+                    </label>
+                    {cardTypesList && cardTypesList.length > 0 ? (
+                      <div className="flex flex-wrap gap-2 text-xs">
+                        {cardTypesList.map((ct) => {
+                          const ctIdStr = String(ct.id);
+                          const isSelected = (form.card_types_ids || '').split(',').map(s => s.trim()).includes(ctIdStr);
+                          const ctName = ct.card_types || ct.card_type_name || ct.name || `Card Type #${ct.id}`;
+                          return (
+                            <button
+                              key={ct.id}
+                              type="button"
+                              onClick={() => {
+                                const next = toggleIdInString(form.card_types_ids, ct.id);
+                                onChange({ target: { name: 'card_types_ids', value: next } });
+                              }}
+                              className={`rounded-lg px-3 py-1.5 font-medium transition cursor-pointer border ${isSelected
+                                  ? 'bg-[#1A1817] text-white border-[#1A1817] shadow-xs'
+                                  : 'bg-[#FAF8F5] text-[#1A1817] border-[#E2DDD5] hover:border-[#1A1817]'
+                                }`}
+                            >
+                              {ctName} {isSelected && '✓'}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-[#8C857B]">No card types found.</p>
+                    )}
+                  </div>
+                  */}
+
+                  {/* STATUS */}
+                  <div className="border-t border-[#F0ECE1] pt-5">
+                    <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#8C857B]">
+                      STATUS
+                    </label>
+                    <select
+                      name="product_status"
+                      value={form.product_status || 'Active'}
+                      onChange={onChange}
+                      className="w-full rounded-md border border-[#E2DDD5] bg-[#FAF8F5] p-2 text-xs text-[#1A1817] outline-none focus:border-[#1A1817]"
+                    >
+                      <option value="Active">Active</option>
+                      <option value="Inactive">Inactive</option>
+                    </select>
                   </div>
                 </div>
               </div>
+
+              {/* Bottom Modal Footer Bar */}
+              <div className="lg:col-span-3 mt-6 flex items-center justify-end border-t border-[#E2DDD5] pt-6">
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="rounded-lg bg-gradient-to-r from-[#C99C4B] via-[#B88B3A] to-[#8C6627] px-6 py-3 text-xs font-bold uppercase tracking-widest text-white shadow-md hover:from-[#B88B3A] hover:to-[#7A571F] active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50 flex items-center gap-2 border border-[#E5C78A]/40"
+                >
+                  <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                  {submitting ? 'SAVING...' : 'PUBLISH PRODUCT'}
+                </button>
+              </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Fullscreen Image Preview Lightbox */}
+      {previewModalUrl && (
+        <div
+          onClick={() => setPreviewModalUrl(null)}
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 cursor-pointer"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative max-h-[90vh] max-w-[90vw] overflow-hidden rounded-xl border border-white/20 bg-black/60 p-3 shadow-2xl flex flex-col items-center justify-center"
+          >
+            <button
+              type="button"
+              onClick={() => setPreviewModalUrl(null)}
+              className="absolute top-4 right-4 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-black/70 text-white hover:bg-red-600 transition cursor-pointer shadow-md"
+              title="Close Preview"
+            >
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <img
+              src={previewModalUrl}
+              alt="Image Preview"
+              referrerPolicy="no-referrer"
+              className="max-h-[82vh] max-w-[82vw] object-contain rounded-lg shadow-lg"
+            />
           </div>
         </div>
       )}

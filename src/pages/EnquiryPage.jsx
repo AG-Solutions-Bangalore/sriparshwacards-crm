@@ -33,14 +33,26 @@ function EnquiryPage() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [deletedIds, setDeletedIds] = useState(new Set());
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
 
-  const fetchData = async () => {
+  const fetchData = async (page = 1) => {
     setLoading(true);
     try {
-      const res = await getEnquiries();
-      console.log('[EnquiryPage] GET /enquiry response:', res);
+      const res = await getEnquiries(page);
+      console.log(`[EnquiryPage] GET /enquiry?page=${page} response:`, res);
       const rawList = extractList(res);
       setItems(rawList.filter((item) => !deletedIds.has(item.id)));
+
+      const lastPage = res?.last_page || res?.data?.last_page || res?.meta?.last_page;
+      const total = res?.total || res?.data?.total || res?.meta?.total;
+
+      if (lastPage) setTotalPages(lastPage);
+      else setTotalPages(Math.max(1, Math.ceil((total || rawList.length) / 10)));
+
+      if (total !== undefined && total !== null) setTotalCount(total);
+      else setTotalCount(rawList.length);
     } catch (err) {
       toast.error(extractErrorMessage(err));
     } finally {
@@ -49,15 +61,38 @@ function EnquiryPage() {
   };
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    fetchData(currentPage);
+  }, [currentPage]);
 
-  const handleToggleStatus = async (id, status) => {
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= totalPages && newPage !== currentPage) {
+      setCurrentPage(newPage);
+    }
+  };
+
+  const handleToggleStatus = async (id, newStatus) => {
+    const currentItem = items.find((item) => item.id === id);
+    const prevStatus = currentItem?.enquiryStatus || currentItem?.enquiry_status || currentItem?.status || 'Pending';
+
+    setItems((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? { ...item, enquiryStatus: newStatus, enquiry_status: newStatus, status: newStatus }
+          : item
+      )
+    );
     try {
-      const res = await updateEnquiryStatus(id, status);
-      toast.success(res?.message || `Enquiry status updated to ${status}.`);
-      await fetchData();
+      const res = await updateEnquiryStatus(id, newStatus);
+      const msg = res?.message && !res.message.toLowerCase().includes('no enquiry') ? res.message : `Enquiry status updated to ${newStatus}.`;
+      toast.success(msg);
     } catch (err) {
+      setItems((prev) =>
+        prev.map((item) =>
+          item.id === id
+            ? { ...item, enquiryStatus: prevStatus, enquiry_status: prevStatus, status: prevStatus }
+            : item
+        )
+      );
       toast.error(extractErrorMessage(err));
     }
   };
@@ -88,6 +123,10 @@ function EnquiryPage() {
       onDelete={handleDelete}
       onLogout={handleLogout}
       onProfile={handleProfile}
+      currentPage={currentPage}
+      onPageChange={handlePageChange}
+      totalPages={totalPages}
+      totalCount={totalCount}
     />
   );
 }

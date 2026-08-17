@@ -10,6 +10,7 @@ import EnquiryPage from '../pages/EnquiryPage';
 import ProfilePage from '../pages/ProfilePage';
 import ForgotPasswordPage from '../pages/ForgotPasswordPage';
 import ChangePasswordPage from '../pages/ChangePasswordPage';
+import EnquiryReportPage from '../pages/EnquiryReportPage';
 import AuthRoute from './AuthRoute';
 import ProtectedRoute from './ProtectedRoute';
 
@@ -28,6 +29,8 @@ function AppRoutes() {
         <Route path="/card-type" element={<CardTypePage />} />
         <Route path="/products" element={<ProductPage />} />
         <Route path="/enquiry" element={<EnquiryPage />} />
+        <Route path="/reports/enquiry" element={<EnquiryReportPage />} />
+        <Route path="/reports" element={<Navigate to="/reports/enquiry" replace />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/change-password" element={<ChangePasswordPage />} />
       </Route>

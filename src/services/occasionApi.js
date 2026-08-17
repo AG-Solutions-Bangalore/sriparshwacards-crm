@@ -1,7 +1,7 @@
 import { api } from './api';
 
-export const getOccasions = async () => {
-  const response = await api.get('/occasion');
+export const getOccasions = async (page = 1) => {
+  const response = await api.get('/occasion', { params: { page } });
   return response.data;
 };
 

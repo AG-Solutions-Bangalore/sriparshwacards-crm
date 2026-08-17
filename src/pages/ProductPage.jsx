@@ -4,9 +4,9 @@ import { useNavigate } from 'react-router-dom';
 
 import ProductView from '../components/product/ProductView';
 import { useAuthContext } from '../context/AuthContext';
-import { getActiveCardTypes } from '../services/cardTypeApi';
-import { getActiveCategories } from '../services/categoryApi';
-import { getActiveOccasions } from '../services/occasionApi';
+import { getActiveCardTypes, getCardTypes } from '../services/cardTypeApi';
+import { getActiveCategories, getCategories } from '../services/categoryApi';
+import { getActiveOccasions, getOccasions } from '../services/occasionApi';
 import {
   createProduct,
   deleteProduct,
@@ -23,6 +23,9 @@ function extractList(response) {
   if (Array.isArray(response?.data)) return response.data;
   if (Array.isArray(response?.data?.data)) return response.data.data;
   if (Array.isArray(response?.products)) return response.products;
+  if (Array.isArray(response?.occasions)) return response.occasions;
+  if (Array.isArray(response?.categories)) return response.categories;
+  if (Array.isArray(response?.card_types)) return response.card_types;
   return [];
 }
 
@@ -44,7 +47,7 @@ const emptyForm = {
   categories_ids: '',
   card_types_ids: '',
   product_status: 'Active',
-  images: [{ product_images: '', product_images_sort_order: '1' }],
+  images: [{ product_images: '', product_images_sort_order: '1', product_images_status: 'Active' }],
   placements: [{ placements_id: '1' }],
 };
 
@@ -65,19 +68,40 @@ function ProductPage() {
 
   const [deletedIds, setDeletedIds] = useState(new Set());
 
-  const fetchData = async () => {
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+
+  const fetchData = async (page = 1) => {
     setLoading(true);
     try {
       const [prodRes, occRes, catRes, ctRes] = await Promise.all([
-        getProducts(),
-        getActiveOccasions().catch(() => []),
-        getActiveCategories().catch(() => []),
-        getActiveCardTypes().catch(() => []),
+        getProducts(page),
+        getOccasions().catch(() => getActiveOccasions().catch(() => [])),
+        getCategories().catch(() => getActiveCategories().catch(() => [])),
+        getCardTypes().catch(() => getActiveCardTypes().catch(() => [])),
       ]);
 
-      console.log('[ProductPage] GET /products response:', prodRes);
+      console.log(`[ProductPage] GET /products?page=${page} response:`, prodRes);
       const rawList = extractList(prodRes);
       setItems(rawList.filter((item) => !deletedIds.has(item.id)));
+
+      // Extract pagination metadata if present
+      const lastPage = prodRes?.last_page || prodRes?.data?.last_page || prodRes?.meta?.last_page;
+      const total = prodRes?.total || prodRes?.data?.total || prodRes?.meta?.total;
+
+      if (lastPage) {
+        setTotalPages(lastPage);
+      } else {
+        setTotalPages(Math.max(1, Math.ceil((total || rawList.length) / 10)));
+      }
+
+      if (total !== undefined && total !== null) {
+        setTotalCount(total);
+      } else {
+        setTotalCount(rawList.length);
+      }
+
       setOccasionsList(extractList(occRes));
       setCategoriesList(extractList(catRes));
       setCardTypesList(extractList(ctRes));
@@ -89,8 +113,14 @@ function ProductPage() {
   };
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    fetchData(currentPage);
+  }, [currentPage]);
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= totalPages && newPage !== currentPage) {
+      setCurrentPage(newPage);
+    }
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -127,6 +157,9 @@ function ProductPage() {
   const handleImageChange = (index, field, value) => {
     setForm((prev) => {
       const updated = [...(prev.images || [])];
+      if (index >= updated.length) {
+        updated[index] = { product_images: '', product_images_sort_order: String(index + 1) };
+      }
       updated[index] = { ...updated[index], [field]: value };
       return { ...prev, images: updated };
     });
@@ -199,6 +232,38 @@ function ProductPage() {
       const item = response?.data || response?.product || response;
       setEditingItem(item);
 
+      const rawImages = item?.images || item?.product_images || item?.gallery || [];
+      let mappedImages = [];
+      if (Array.isArray(rawImages) && rawImages.length > 0) {
+        mappedImages = rawImages.map((img, idx) => {
+          if (typeof img === 'string') {
+            return {
+              product_images: img,
+              product_images_sort_order: String(idx + 1),
+              product_images_status: 'Active',
+            };
+          }
+          const pathVal =
+            img?.product_images ||
+            img?.image ||
+            img?.image_path ||
+            img?.file_path ||
+            img?.url ||
+            img?.path ||
+            img?.file_name ||
+            '';
+          return {
+            id: img?.id,
+            product_images: pathVal,
+            product_images_sort_order: String(img?.product_images_sort_order || img?.sort_order || idx + 1),
+            product_images_status: img?.product_images_status || img?.status || 'Active',
+          };
+        });
+      }
+      if (mappedImages.length === 0) {
+        mappedImages = [{ product_images: '', product_images_sort_order: '1', product_images_status: 'Active' }];
+      }
+
       setForm({
         product_name: item?.product_name || '',
         product_made_of: item?.product_made_of || '',
@@ -206,7 +271,7 @@ function ProductPage() {
         categories_ids: item?.categories_ids || '',
         card_types_ids: item?.card_types_ids || '',
         product_status: item?.product_status || 'Active',
-        images: Array.isArray(item?.images) && item.images.length > 0 ? item.images : [{ product_images: '', product_images_sort_order: '1' }],
+        images: mappedImages,
         placements: Array.isArray(item?.placements) && item.placements.length > 0 ? item.placements : [{ placements_id: '1' }],
       });
 
@@ -247,11 +312,24 @@ function ProductPage() {
   /* Toggle Status */
   const handleToggleStatus = async (id, currentStatus) => {
     const nextStatus = currentStatus === 'Active' ? 'Inactive' : 'Active';
+    setItems((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? { ...item, product_status: nextStatus, status: nextStatus }
+          : item
+      )
+    );
     try {
       const res = await updateProductStatus(id, nextStatus);
       toast.success(res?.message || `Status changed to ${nextStatus}.`);
-      await fetchData();
     } catch (err) {
+      setItems((prev) =>
+        prev.map((item) =>
+          item.id === id
+            ? { ...item, product_status: currentStatus, status: currentStatus }
+            : item
+        )
+      );
       toast.error(extractErrorMessage(err));
     }
   };
@@ -279,6 +357,10 @@ function ProductPage() {
       onCloseModal={handleCloseModal}
       onDelete={handleDelete}
       submitting={submitting}
+      currentPage={currentPage}
+      onPageChange={handlePageChange}
+      totalPages={totalPages}
+      totalCount={totalCount}
       occasionsList={occasionsList}
       categoriesList={categoriesList}
       cardTypesList={cardTypesList}

@@ -50,18 +50,31 @@ function CategoryPage() {
   const [editingItem, setEditingItem] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+
   /* ───────────── FETCH DATA ───────────── */
-  const fetchData = async () => {
+  const fetchData = async (page = 1) => {
     setLoading(true);
     try {
       const [listResponse] = await Promise.all([
-        getCategories(),
-        getActiveCategories().catch(() => []), // optional backup
+        getCategories(page),
+        getActiveCategories().catch(() => []),
       ]);
 
-      console.log('[CategoryPage] GET /category response:', listResponse);
+      console.log(`[CategoryPage] GET /category?page=${page} response:`, listResponse);
       const listData = extractList(listResponse);
       setItems(listData);
+
+      const lastPage = listResponse?.last_page || listResponse?.data?.last_page || listResponse?.meta?.last_page;
+      const total = listResponse?.total || listResponse?.data?.total || listResponse?.meta?.total;
+
+      if (lastPage) setTotalPages(lastPage);
+      else setTotalPages(Math.max(1, Math.ceil((total || listData.length) / 10)));
+
+      if (total !== undefined && total !== null) setTotalCount(total);
+      else setTotalCount(listData.length);
     } catch (err) {
       const msg = extractErrorMessage(err);
       toast.error(msg);
@@ -71,8 +84,14 @@ function CategoryPage() {
   };
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    fetchData(currentPage);
+  }, [currentPage]);
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= totalPages && newPage !== currentPage) {
+      setCurrentPage(newPage);
+    }
+  };
 
   /* ───────────── FORM HANDLERS ───────────── */
   const handleChange = (event) => {
@@ -163,11 +182,24 @@ function CategoryPage() {
   /* ───────────── TOGGLE STATUS ───────────── */
   const handleToggleStatus = async (id, currentStatus) => {
     const nextStatus = currentStatus === 'Active' ? 'Inactive' : 'Active';
+    setItems((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? { ...item, categories_status: nextStatus, status: nextStatus }
+          : item
+      )
+    );
     try {
       const response = await updateCategoryStatus(id, nextStatus);
       toast.success(response?.message || `Status changed to ${nextStatus}.`);
-      await fetchData();
     } catch (err) {
+      setItems((prev) =>
+        prev.map((item) =>
+          item.id === id
+            ? { ...item, categories_status: currentStatus, status: currentStatus }
+            : item
+        )
+      );
       toast.error(extractErrorMessage(err));
     }
   };
@@ -195,6 +227,10 @@ function CategoryPage() {
       onOpenModal={handleOpenCreateModal}
       onCloseModal={handleCloseModal}
       submitting={submitting}
+      currentPage={currentPage}
+      onPageChange={handlePageChange}
+      totalPages={totalPages}
+      totalCount={totalCount}
     />
   );
 }

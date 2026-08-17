@@ -49,24 +49,32 @@ function OccasionPage() {
   const [editingItem, setEditingItem] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+
   /* ───────────── FETCH ───────────── */
-  const fetchData = async () => {
+  const fetchData = async (page = 1) => {
     setLoading(true);
     try {
       const [listResponse] = await Promise.all([
-        getOccasions(),
-        getActiveOccasions().catch(() => []), // optional – don't block list
+        getOccasions(page),
+        getActiveOccasions().catch(() => []),
       ]);
 
-      console.log('[OccasionPage] GET /occasion raw response:', listResponse);
+      console.log(`[OccasionPage] GET /occasion?page=${page} raw response:`, listResponse);
 
       const listData = extractList(listResponse);
       setItems(listData);
 
-      if (listData.length === 0) {
-        // Help debug – show what the raw shape was
-        console.warn('[OccasionPage] No items extracted. Full response:', JSON.stringify(listResponse));
-      }
+      const lastPage = listResponse?.last_page || listResponse?.data?.last_page || listResponse?.meta?.last_page;
+      const total = listResponse?.total || listResponse?.data?.total || listResponse?.meta?.total;
+
+      if (lastPage) setTotalPages(lastPage);
+      else setTotalPages(Math.max(1, Math.ceil((total || listData.length) / 10)));
+
+      if (total !== undefined && total !== null) setTotalCount(total);
+      else setTotalCount(listData.length);
     } catch (err) {
       const msg = extractErrorMessage(err);
       toast.error(msg);
@@ -76,8 +84,14 @@ function OccasionPage() {
   };
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    fetchData(currentPage);
+  }, [currentPage]);
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= totalPages && newPage !== currentPage) {
+      setCurrentPage(newPage);
+    }
+  };
 
   /* ───────────── FORM CHANGE ───────────── */
   const handleChange = (event) => {
@@ -174,11 +188,24 @@ function OccasionPage() {
   /* ───────────── TOGGLE STATUS ───────────── */
   const handleToggleStatus = async (id, currentStatus) => {
     const nextStatus = currentStatus === 'Active' ? 'Inactive' : 'Active';
+    setItems((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? { ...item, occasions_status: nextStatus, status: nextStatus }
+          : item
+      )
+    );
     try {
       const response = await updateOccasionStatus(id, nextStatus);
       toast.success(response?.message || `Status changed to ${nextStatus}.`);
-      await fetchData();
     } catch (err) {
+      setItems((prev) =>
+        prev.map((item) =>
+          item.id === id
+            ? { ...item, occasions_status: currentStatus, status: currentStatus }
+            : item
+        )
+      );
       toast.error(extractErrorMessage(err));
     }
   };
@@ -209,6 +236,10 @@ function OccasionPage() {
       onOpenModal={handleOpenCreateModal}
       onCloseModal={handleCloseModal}
       submitting={submitting}
+      currentPage={currentPage}
+      onPageChange={handlePageChange}
+      totalPages={totalPages}
+      totalCount={totalCount}
     />
   );
 }

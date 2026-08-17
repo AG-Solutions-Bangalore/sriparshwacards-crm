@@ -24,6 +24,10 @@ function OccasionView({
   onOpenModal,
   onCloseModal,
   submitting,
+  currentPage = 1,
+  onPageChange,
+  totalPages = 1,
+  totalCount = 0,
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [columnsOpen, setColumnsOpen] = useState(false);
@@ -33,6 +37,20 @@ function OccasionView({
     status: true,
   });
   const dropdownRef = useRef(null);
+
+  const itemsPerPage = 10;
+  const isServerPaginated = typeof onPageChange === 'function';
+  const filteredItems = items.filter((item) => {
+    const name = item.occasions || item.occasion_name || item.name || '';
+    return name.toLowerCase().includes(searchQuery.toLowerCase());
+  });
+
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedItems = isServerPaginated ? filteredItems : filteredItems.slice(startIndex, startIndex + itemsPerPage);
+  const calculatedTotalPages = isServerPaginated ? totalPages : Math.max(1, Math.ceil(filteredItems.length / itemsPerPage));
+  const displayTotal = isServerPaginated ? (totalCount || items.length) : filteredItems.length;
+  const startNum = startIndex + 1;
+  const endNum = isServerPaginated ? Math.min(currentPage * itemsPerPage, displayTotal) : Math.min(startIndex + itemsPerPage, filteredItems.length);
 
   /* Close columns dropdown on outside click */
   useEffect(() => {
@@ -49,11 +67,6 @@ function OccasionView({
   const toggleCol = (key) => {
     setVisibleCols((prev) => ({ ...prev, [key]: !prev[key] }));
   };
-
-  /* Filtered rows */
-  const filteredItems = items.filter((item) =>
-    (item.occasions || '').toLowerCase().includes(searchQuery.toLowerCase())
-  );
 
   return (
     <div className="flex min-h-screen bg-[#F7F5F0] text-[#1A1817] font-sans">
@@ -75,23 +88,16 @@ function OccasionView({
             <button
               type="button"
               onClick={onProfile}
-              className="flex items-center gap-3 rounded-full bg-white px-3 py-1.5 shadow-sm border border-[#E5E0D8] hover:border-[#C99C4B] transition cursor-pointer text-left"
+              className="flex items-center gap-3 rounded-lg bg-white px-3 py-1.5 shadow-sm border border-[#E5E0D8] hover:border-[#C99C4B] transition cursor-pointer text-left"
               title="View Profile"
             >
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#EFECE6] text-xs font-serif font-bold text-[#1A1817] border border-[#D5CFC5]">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#EFECE6] text-xs font-serif font-bold text-[#1A1817] border border-[#D5CFC5]">
                 EA
               </div>
               <div className="pr-1">
                 <p className="text-xs font-bold text-[#1A1817] leading-tight">Admin User</p>
                 <p className="text-[10px] text-[#8C857B] leading-tight">Manager</p>
               </div>
-            </button>
-            <button
-              type="button"
-              onClick={onLogout}
-              className="rounded-none bg-[#1A1817] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-white transition hover:bg-[#38332E] cursor-pointer"
-            >
-              Logout
             </button>
           </div>
         </div>
@@ -132,7 +138,7 @@ function OccasionView({
                   type="button"
                   id="columns-toggle-btn"
                   onClick={() => setColumnsOpen((o) => !o)}
-                  className={`flex items-center gap-2 rounded-md border px-4 py-2 text-xs font-semibold uppercase tracking-wider transition shadow-xs cursor-pointer ${
+                  className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-xs font-semibold uppercase tracking-wider transition shadow-xs cursor-pointer ${
                     columnsOpen
                       ? 'border-[#1A1817] bg-[#F5CE93] text-[#1A1817]'
                       : 'border-[#E2DDD5] bg-white text-[#59534C] hover:bg-[#F7F5F0]'
@@ -179,7 +185,7 @@ function OccasionView({
                 type="button"
                 id="add-occasion-btn"
                 onClick={onOpenModal}
-                className="flex items-center gap-2 bg-[#1A1817] hover:bg-[#38332E] px-5 py-2 text-xs font-semibold uppercase tracking-widest text-white transition shadow-xs cursor-pointer"
+                className="flex items-center gap-2 rounded-lg bg-[#1A1817] hover:bg-[#38332E] px-5 py-2 text-xs font-semibold uppercase tracking-widest text-white transition shadow-xs cursor-pointer"
               >
                 <span className="text-sm font-bold leading-none">+</span>
                 ADD OCCASION
@@ -215,13 +221,13 @@ function OccasionView({
                       Loading occasions...
                     </td>
                   </tr>
-                ) : filteredItems.length > 0 ? (
-                  filteredItems.map((item, index) => {
+                ) : paginatedItems.length > 0 ? (
+                  paginatedItems.map((item, index) => {
                     const status = item.occasions_status || item.status || 'Active';
                     return (
                       <tr key={item.id} className="hover:bg-[#FAF8F5] transition-colors">
                         {visibleCols.slno && (
-                          <td className="px-6 py-4 font-mono text-[#8C857B]">{index + 1}</td>
+                          <td className="px-6 py-4 font-mono text-[#8C857B]">{startIndex + index + 1}</td>
                         )}
                         {visibleCols.name && (
                           <td className="px-6 py-4 font-bold text-[#1A1817]">{item.occasions}</td>
@@ -231,10 +237,10 @@ function OccasionView({
                             <button
                               type="button"
                               onClick={() => onToggleStatus && onToggleStatus(item.id, status)}
-                              className={`inline-block border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider cursor-pointer transition ${
+                              className={`inline-block border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-md cursor-pointer transition ${
                                 status === 'Active'
-                                  ? 'border-[#1A1817] text-[#1A1817] bg-white hover:bg-[#F5CE93]'
-                                  : 'border-[#C5C0B6] text-[#8C857B] bg-white hover:bg-[#EFECE6]'
+                                  ? 'border-emerald-500 text-emerald-700 bg-emerald-50 hover:bg-emerald-100'
+                                  : 'border-rose-400 text-rose-700 bg-rose-50 hover:bg-rose-100'
                               }`}
                             >
                               {status}
@@ -270,6 +276,48 @@ function OccasionView({
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* ── PAGINATION BAR ── */}
+          <div className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between border-t border-[#F0ECE1] bg-[#FAF8F5]">
+            <p className="text-xs text-[#8C857B]">
+              Showing <span className="font-semibold text-[#1A1817]">{displayTotal > 0 ? startNum : 0}</span> to{' '}
+              <span className="font-semibold text-[#1A1817]">{endNum}</span> of{' '}
+              <span className="font-semibold text-[#1A1817]">{displayTotal}</span> occasions
+            </p>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => onPageChange && onPageChange(currentPage - 1)}
+                disabled={currentPage <= 1}
+                className="inline-flex items-center gap-1 rounded-lg border border-[#E2DDD5] bg-white px-3.5 py-1.5 text-xs font-semibold text-[#1A1817] shadow-xs hover:bg-[#EFECE6] disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                </svg>
+                Previous
+              </button>
+
+              <div className="flex items-center gap-1 px-3 text-xs font-semibold text-[#59534C]">
+                <span>Page</span>
+                <span className="text-[#1A1817] font-bold">{currentPage}</span>
+                <span>of</span>
+                <span className="text-[#1A1817] font-bold">{calculatedTotalPages}</span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => onPageChange && onPageChange(currentPage + 1)}
+                disabled={currentPage >= calculatedTotalPages}
+                className="inline-flex items-center gap-1 rounded-lg border border-[#E2DDD5] bg-white px-3.5 py-1.5 text-xs font-semibold text-[#1A1817] shadow-xs hover:bg-[#EFECE6] disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
+              >
+                Next
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
       </main>
@@ -307,21 +355,23 @@ function OccasionView({
                 />
               </div>
 
-              <div>
-                <label htmlFor="occasions_status" className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-[#8C857B]">
-                  STATUS
-                </label>
-                <select
-                  id="occasions_status"
-                  name="occasions_status"
-                  value={form.occasions_status || 'Active'}
-                  onChange={onChange}
-                  className="w-full rounded-md border border-[#E2DDD5] bg-white p-3 text-xs text-[#1A1817] outline-none focus:border-[#1A1817] transition"
-                >
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                </select>
-              </div>
+              {editingId ? (
+                <div>
+                  <label htmlFor="occasions_status" className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-[#8C857B]">
+                    STATUS
+                  </label>
+                  <select
+                    id="occasions_status"
+                    name="occasions_status"
+                    value={form.occasions_status || 'Active'}
+                    onChange={onChange}
+                    className="w-full rounded-md border border-[#E2DDD5] bg-white p-3 text-xs text-[#1A1817] outline-none focus:border-[#1A1817] transition"
+                  >
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
+                </div>
+              ) : null}
 
               <div className="flex items-center gap-3 pt-4">
                 <button
