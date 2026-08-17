@@ -1,7 +1,12 @@
 import { api } from './api';
 
-export const getCardTypes = async (page = 1) => {
-  const response = await api.get('/cardtype', { params: { page } });
+export const getCardTypes = async (page = 1, search = '') => {
+  const params = { page };
+  if (search) {
+    params.search = search;
+    params.q = search;
+  }
+  const response = await api.get('/cardtype', { params });
   return response.data;
 };
 

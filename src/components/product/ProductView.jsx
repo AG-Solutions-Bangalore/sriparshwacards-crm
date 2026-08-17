@@ -1,8 +1,8 @@
-
 import { useEffect, useRef, useState } from 'react';
 
 import { api } from '../../services/api';
 import Sidebar from '../dashboard/Sidebar';
+import LogoutConfirmModal from '../common/LogoutConfirmModal';
 
 /* Toggleable Columns */
 const TOGGLEABLE_COLUMNS = [
@@ -315,6 +315,9 @@ function ProductView({
   onPageChange,
   totalPages = 1,
   totalCount = 0,
+  searchQuery = '',
+  onSearchChange,
+  statusFilter,
   onAddImageRow,
   onRemoveImageRow,
   onImageChange,
@@ -322,8 +325,16 @@ function ProductView({
   onRemovePlacementRow,
   onPlacementChange,
 }) {
-  const [searchQuery, setSearchQuery] = useState('');
   const [columnsOpen, setColumnsOpen] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const handleConfirmLogout = async () => {
+    setLoggingOut(true);
+    if (onLogout) await onLogout();
+    setLoggingOut(false);
+    setShowLogoutConfirm(false);
+  };
   const [visibleCols, setVisibleCols] = useState({
     slno: true,
     image: true,
@@ -334,10 +345,18 @@ function ProductView({
     card_types: true,
     status: true,
   });
-  const [selectedTiers, setSelectedTiers] = useState(['Standard']);
-  const [selectedTraditions, setSelectedTraditions] = useState(['Hindu Wedding']);
-  const [selectedStyles, setSelectedStyles] = useState(['Traditional']);
+  const [selectedTiers, setSelectedTiers] = useState([]);
+  const [selectedTraditions, setSelectedTraditions] = useState([]);
+  const [selectedStyles, setSelectedStyles] = useState([]);
   const [previewModalUrl, setPreviewModalUrl] = useState(null);
+
+  useEffect(() => {
+    if (isModalOpen && !editingId) {
+      setSelectedTiers([]);
+      setSelectedTraditions([]);
+      setSelectedStyles([]);
+    }
+  }, [isModalOpen, editingId]);
 
   const toggleSelection = (item, currentList, setList) => {
     if (currentList.includes(item)) {
@@ -352,6 +371,16 @@ function ProductView({
   const handleFileChange = async (e, targetIdx = null) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
+
+    // Check if any file is not WebP
+    const nonWebpFiles = files.filter(
+      (file) => !file.type.includes('webp') && !file.name.toLowerCase().endsWith('.webp')
+    );
+    if (nonWebpFiles.length > 0) {
+      toast.error('Only WebP images (.webp) are allowed!');
+      if (e.target) e.target.value = '';
+      return;
+    }
 
     // Read all selected files concurrently into Data URLs
     const readPromises = files.map((file) => {
@@ -429,6 +458,11 @@ function ProductView({
   };
 
   const filteredItems = items.filter((item) => {
+    const itemStatus = item.product_status || item.status || 'Active';
+    if (statusFilter && String(itemStatus).toLowerCase() !== String(statusFilter).toLowerCase()) {
+      return false;
+    }
+
     const name = item.product_name || item.name || '';
     const madeOf = item.product_made_of || '';
     const occNames = getNameArrayFromIds(item.occasions_ids || item.occasions, occasionsList, 'occasions').join(' ');
@@ -463,24 +497,41 @@ function ProductView({
         <div className="mb-8 flex items-center justify-between">
           <div>
             <h1 className="font-serif text-3xl font-normal tracking-tight text-[#1A1817]">
-              Product Catalog
+              Product Overview
             </h1>
             <p className="mt-1 text-xs text-[#8C857B]">Manage luxury invitation suites & craftsmanship listings</p>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={onProfile}
-              className="flex items-center gap-3 rounded-lg bg-white px-3 py-1.5 shadow-sm border border-[#E5E0D8] hover:border-[#C99C4B] transition cursor-pointer text-left"
+              className="flex items-center gap-2.5 rounded-full bg-white px-3.5 py-1.5 shadow-xs border border-[#E5E0D8] hover:border-[#C99C4B] transition cursor-pointer text-left"
               title="View Profile"
             >
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#EFECE6] text-xs font-serif font-bold text-[#1A1817] border border-[#D5CFC5]">
-                EA
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#EFECE6] text-[11px] font-serif font-bold text-[#1A1817] border border-[#D5CFC5]">
+                A
               </div>
               <div className="pr-1">
-                <p className="text-xs font-bold text-[#1A1817] leading-tight">Admin User</p>
+                <p className="text-xs font-bold text-[#1A1817] leading-tight">Admin</p>
                 <p className="text-[10px] text-[#8C857B] leading-tight">Manager</p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowLogoutConfirm(true)}
+              className="flex items-center gap-2.5 rounded-full bg-white px-3.5 py-1.5 shadow-xs border border-[#E5E0D8] hover:border-red-500 hover:bg-red-50/40 transition cursor-pointer text-left"
+              title="Log out"
+            >
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-red-50 text-red-600 border border-red-200">
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+              </div>
+              <div className="pr-1">
+                <p className="text-xs font-bold text-red-600 leading-tight">Logout</p>
+                <p className="text-[10px] text-red-500/80 leading-tight">Exit</p>
               </div>
             </button>
           </div>
@@ -489,8 +540,7 @@ function ProductView({
         {/* ── MAIN CARD / TABLE CONTAINER ── */}
         <div className="rounded-xl border border-[#E8E3DA] bg-white shadow-xs">
           <div className="border-b border-[#F0ECE1] px-6 py-4 flex items-center justify-between">
-            <h2 className="font-serif text-xl font-normal text-[#1A1817]">Product Catalog List</h2>
-            <span className="text-xs font-medium text-[#8C857B]">{filteredItems.length} Products</span>
+            <h2 className="font-serif text-xl font-normal text-[#1A1817]">Product List</h2>
           </div>
 
           {/* Search + Action bar */}
@@ -506,7 +556,7 @@ function ProductView({
                 type="text"
                 placeholder="Search products by name, made of..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => onSearchChange ? onSearchChange(e.target.value) : null}
                 className="w-full rounded-md border border-[#E2DDD5] bg-white py-2 pl-10 pr-4 text-xs text-[#1A1817] outline-none placeholder:text-[#A39C93] focus:border-[#1A1817] transition"
               />
             </div>
@@ -517,12 +567,12 @@ function ProductView({
                 <button
                   type="button"
                   onClick={() => setColumnsOpen((o) => !o)}
-                  className={`flex items-center gap-2 rounded-md border px-4 py-2 text-xs font-semibold uppercase tracking-wider transition shadow-xs cursor-pointer ${columnsOpen
+                  className={`flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 font-serif text-xs font-normal tracking-wide transition shadow-xs cursor-pointer ${columnsOpen
                       ? 'border-[#1A1817] bg-[#F5CE93] text-[#1A1817]'
-                      : 'border-[#E2DDD5] bg-white text-[#59534C] hover:bg-[#F7F5F0]'
+                      : 'border-[#E2DDD5] bg-white text-[#1A1817] hover:bg-[#F7F5F0]'
                     }`}
                 >
-                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <rect x="3" y="3" width="7" height="18" rx="1" />
                     <rect x="14" y="3" width="7" height="18" rx="1" />
                   </svg>
@@ -557,10 +607,10 @@ function ProductView({
               <button
                 type="button"
                 onClick={onOpenModal}
-                className="flex items-center gap-2 rounded-lg bg-[#1A1817] hover:bg-[#38332E] px-5 py-2 text-xs font-semibold uppercase tracking-widest text-white transition shadow-xs cursor-pointer"
+                className="flex items-center gap-1.5 rounded-full bg-[#1A1817] hover:bg-[#38332E] px-4 py-1.5 font-serif text-xs font-normal tracking-wide text-white transition shadow-xs cursor-pointer"
               >
-                <span className="text-sm font-bold leading-none">+</span>
-                ADD NEW PRODUCT
+                <span className="font-serif text-xs leading-none">+</span>
+                Add New Product
               </button>
             </div>
           </div>
@@ -569,13 +619,13 @@ function ProductView({
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-xs">
               <thead className="border-b border-[#E2DDD5] bg-[#EFECE6]">
-                <tr className="text-[11px] font-semibold uppercase tracking-wider text-[#59534C]">
-                  {visibleCols.slno && <th className="w-16 px-6 py-3.5">Sl.no</th>}
-                  {visibleCols.image && <th className="w-20 px-6 py-3.5">Image</th>}
-                  {visibleCols.name && <th className="px-6 py-3.5">Product Name</th>}
-                  {visibleCols.made_of && <th className="px-6 py-3.5">Made Of</th>}
-                  {visibleCols.occasions && <th className="px-6 py-3.5">Occasion IDs</th>}
-                  {visibleCols.categories && <th className="px-6 py-3.5">Category IDs</th>}
+                <tr className="text-[10px] font-semibold uppercase tracking-wider text-[#59534C]">
+                  {visibleCols.slno && <th className="w-16 px-6 py-2.5">Sl.no</th>}
+                  {visibleCols.image && <th className="w-20 px-6 py-2.5">Image</th>}
+                  {visibleCols.name && <th className="px-6 py-2.5">Product Name</th>}
+                  {visibleCols.made_of && <th className="px-6 py-2.5">Made Of</th>}
+                  {visibleCols.occasions && <th className="px-6 py-2.5">Occasion IDs</th>}
+                  {visibleCols.categories && <th className="px-6 py-2.5">Category IDs</th>}
                   {/* {visibleCols.card_types && <th className="px-6 py-3.5">Card Type IDs</th>} */}
                   {visibleCols.status && <th className="w-32 px-6 py-3.5">Status</th>}
                   <th className="w-28 px-6 py-3.5 text-right">Actions</th>
@@ -701,15 +751,15 @@ function ProductView({
                 type="button"
                 onClick={() => onPageChange && onPageChange(currentPage - 1)}
                 disabled={currentPage <= 1}
-                className="inline-flex items-center gap-1 rounded-lg border border-[#E2DDD5] bg-white px-3.5 py-1.5 text-xs font-semibold text-[#1A1817] shadow-xs hover:bg-[#EFECE6] disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
+                className="inline-flex items-center gap-1 rounded-full border border-[#E2DDD5] bg-white px-3 py-1 text-[10px] font-semibold text-[#1A1817] shadow-xs hover:bg-[#EFECE6] disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
               >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
                 </svg>
                 Previous
               </button>
 
-              <div className="flex items-center gap-1 px-3 text-xs font-semibold text-[#59534C]">
+              <div className="flex items-center gap-1 px-3 text-[10px] font-semibold text-[#59534C]">
                 <span>Page</span>
                 <span className="text-[#1A1817] font-bold">{currentPage}</span>
                 <span>of</span>
@@ -720,10 +770,10 @@ function ProductView({
                 type="button"
                 onClick={() => onPageChange && onPageChange(currentPage + 1)}
                 disabled={currentPage >= calculatedTotalPages}
-                className="inline-flex items-center gap-1 rounded-lg border border-[#E2DDD5] bg-white px-3.5 py-1.5 text-xs font-semibold text-[#1A1817] shadow-xs hover:bg-[#EFECE6] disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
+                className="inline-flex items-center gap-1 rounded-full border border-[#E2DDD5] bg-white px-3 py-1 text-[10px] font-semibold text-[#1A1817] shadow-xs hover:bg-[#EFECE6] disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
               >
                 Next
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                 </svg>
               </button>
@@ -781,12 +831,13 @@ function ProductView({
                   {/* Invitation Name */}
                   <div className="mb-6">
                     <label htmlFor="product_name" className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-[#8C857B]">
-                      INVITATION NAME
+                      INVITATION NAME <span className="text-red-600 font-bold">*</span>
                     </label>
                     <input
                       id="product_name"
                       name="product_name"
                       type="text"
+                      autoFocus
                       value={form.product_name || ''}
                       onChange={onChange}
                       placeholder="e.g. The Royal Crest Suite"
@@ -798,7 +849,7 @@ function ProductView({
                   {/* Made Of */}
                   <div className="mb-6">
                     <label htmlFor="product_made_of" className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-[#8C857B]">
-                      MADE OF / CRAFTSMANSHIP DETAILS
+                      MADE OF / CRAFTSMANSHIP DETAILS <span className="text-red-600 font-bold">*</span>
                     </label>
                     <input
                       id="product_made_of"
@@ -838,7 +889,7 @@ function ProductView({
                       <label className="md:col-span-2 flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-[#E2DDD5] bg-[#FAF8F5] p-8 text-center cursor-pointer hover:border-[#1A1817] transition select-none">
                         <input
                           type="file"
-                          accept="image/*"
+                          accept=".webp,image/webp"
                           multiple
                           className="hidden"
                           onChange={(e) => handleFileChange(e, 0)}
@@ -850,9 +901,10 @@ function ProductView({
                             <polyline points="21 15 16 10 5 21" />
                           </svg>
                         </div>
-                        <p className="text-xs font-semibold text-[#1A1817]">Drag & drop or click to upload primary image</p>
-                        <span className="mt-4 inline-block border border-[#2D2926] bg-white px-5 py-1.5 text-xs font-semibold text-[#1A1817] hover:bg-[#EFECE6] transition rounded-lg">
-                          Browse
+                        <p className="text-xs font-semibold text-[#1A1817]">Drag & drop or click to upload primary WebP image</p>
+                        <span className="mt-1 text-[10px] text-[#8C857B]">Only .webp images allowed</span>
+                        <span className="mt-3 inline-block border border-[#2D2926] bg-white px-5 py-1.5 text-xs font-semibold text-[#1A1817] hover:bg-[#EFECE6] transition rounded-lg">
+                          Browse WebP
                         </span>
                       </label>
                     )}
@@ -862,7 +914,7 @@ function ProductView({
                       <p className="font-bold text-[#1A1817]">Image Guidelines</p>
                       <div className="flex items-start gap-2 text-[11px]">
                         <span className="text-[#1A1817] font-bold">✓</span>
-                        <p>Use high quality, well-lit photos.</p>
+                        <p>Only WebP images (.webp) are allowed.</p>
                       </div>
                       <div className="flex items-start gap-2 text-[11px]">
                         <span className="text-[#1A1817] font-bold">✓</span>
@@ -882,11 +934,11 @@ function ProductView({
                         SUPPORTING IMAGES
                       </p>
                       <label className="inline-flex items-center gap-1.5 rounded-lg border border-[#2D2926] bg-white px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider text-[#1A1817] hover:bg-[#EFECE6] transition shadow-xs cursor-pointer select-none">
-                        <span className="text-sm leading-none">+</span>
-                        ADD IMAGE
+                        <span className="text-xs leading-none">+</span>
+                        ADD WEBP IMAGE
                         <input
                           type="file"
-                          accept="image/*"
+                          accept=".webp,image/webp"
                           multiple
                           className="hidden"
                           onChange={(e) => handleFileChange(e)}
@@ -894,89 +946,119 @@ function ProductView({
                       </label>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      {(form.images || []).map((img, idx) => (
-                        <div key={idx} className="rounded-lg border border-[#E2DDD5] bg-[#FAF8F5] p-3 flex flex-col justify-between">
-                          {img.product_images ? (
-                            <div className="relative h-32 w-full rounded-md overflow-hidden border border-[#E2DDD5] bg-black/5">
-                              <img
-                                src={getImageUrl(img.product_images)}
-                                alt={`Product image ${idx + 1}`}
-                                referrerPolicy="no-referrer"
-                                onClick={() => setPreviewModalUrl(getImageUrl(img.product_images))}
-                                onError={(e) => handleImageError(e, img.product_images)}
-                                className="h-full w-full object-cover cursor-pointer hover:opacity-90 transition"
-                                title="Click to preview full-size image"
-                              />
-                            </div>
-                          ) : (
-                            <label className="h-32 w-full rounded-md border-2 border-dashed border-[#E2DDD5] bg-white flex flex-col items-center justify-center text-xs text-[#8C857B] cursor-pointer hover:border-[#1A1817] transition select-none">
-                              <span className="text-[#1A1817] font-semibold text-xs">+ Upload Image</span>
-                              <span className="text-[10px] text-[#8C857B] mt-0.5">Click to select file</span>
-                              <input
-                                type="file"
-                                accept="image/*"
-                                className="hidden"
-                                onChange={(e) => handleFileChange(e, idx)}
-                              />
-                            </label>
-                          )}
+                    {(form.images || []).slice(1).length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        {form.images.slice(1).map((img, idx) => {
+                          const realIdx = idx + 1;
+                          return (
+                            <div key={realIdx} className="rounded-lg border border-[#E2DDD5] bg-[#FAF8F5] p-3 flex flex-col justify-between">
+                              {img.product_images ? (
+                                <div className="relative h-32 w-full rounded-md overflow-hidden border border-[#E2DDD5] bg-black/5">
+                                  <img
+                                    src={getImageUrl(img.product_images)}
+                                    alt={`Product image ${realIdx + 1}`}
+                                    referrerPolicy="no-referrer"
+                                    onClick={() => setPreviewModalUrl(getImageUrl(img.product_images))}
+                                    onError={(e) => handleImageError(e, img.product_images)}
+                                    className="h-full w-full object-cover cursor-pointer hover:opacity-90 transition"
+                                    title="Click to preview full-size image"
+                                  />
+                                </div>
+                              ) : (
+                                <label className="h-32 w-full rounded-md border-2 border-dashed border-[#E2DDD5] bg-white flex flex-col items-center justify-center text-xs text-[#8C857B] cursor-pointer hover:border-[#1A1817] transition select-none">
+                                  <span className="text-[#1A1817] font-semibold text-xs">+ Upload WebP</span>
+                                  <span className="text-[10px] text-[#8C857B] mt-0.5">Only .webp format</span>
+                                  <input
+                                    type="file"
+                                    accept=".webp,image/webp"
+                                    className="hidden"
+                                    onChange={(e) => handleFileChange(e, realIdx)}
+                                  />
+                                </label>
+                              )}
 
-                          <div className="flex items-center justify-between text-[11px] pt-2 gap-1">
-                            <span className="text-[#8C857B] text-[10px]">Sort: {img.product_images_sort_order || idx + 1}</span>
-                            <select
-                              value={img.product_images_status || 'Active'}
-                              onChange={(e) => {
-                                const newImgs = [...(form.images || [])];
-                                newImgs[idx] = { ...newImgs[idx], product_images_status: e.target.value };
-                                onChange({ target: { name: 'images', value: newImgs } });
-                              }}
-                              className={`rounded border px-1.5 py-0.5 text-[10px] font-bold outline-none cursor-pointer ${
-                                (img.product_images_status || 'Active') === 'Active'
-                                  ? 'border-emerald-500 text-emerald-700 bg-emerald-50'
-                                  : 'border-rose-400 text-rose-700 bg-rose-50'
-                              }`}
-                            >
-                              <option value="Active" className="text-emerald-700 bg-white font-bold">Active</option>
-                              <option value="Inactive" className="text-rose-700 bg-white font-bold">Inactive</option>
-                            </select>
-                            <button
-                              type="button"
-                              onClick={() => onRemoveImageRow(idx, img.id)}
-                              className="text-red-600 font-bold hover:underline cursor-pointer text-[10px]"
-                            >
-                              Remove
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                              <div className="flex items-center justify-between text-[11px] pt-2 gap-1">
+                                <span className="text-[#8C857B] text-[10px]">Sort: {img.product_images_sort_order || realIdx + 1}</span>
+                                <select
+                                  value={img.product_images_status || 'Active'}
+                                  onChange={(e) => {
+                                    const newImgs = [...(form.images || [])];
+                                    newImgs[realIdx] = { ...newImgs[realIdx], product_images_status: e.target.value };
+                                    onChange({ target: { name: 'images', value: newImgs } });
+                                  }}
+                                  className={`rounded border px-1.5 py-0.5 text-[10px] font-bold outline-none cursor-pointer ${
+                                    (img.product_images_status || 'Active') === 'Active'
+                                      ? 'border-emerald-500 text-emerald-700 bg-emerald-50'
+                                      : 'border-rose-400 text-rose-700 bg-rose-50'
+                                  }`}
+                                >
+                                  <option value="Active" className="text-emerald-700 bg-white font-bold">Active</option>
+                                  <option value="Inactive" className="text-rose-700 bg-white font-bold">Inactive</option>
+                                </select>
+                                <button
+                                  type="button"
+                                  onClick={() => onRemoveImageRow(realIdx, img.id)}
+                                  className="text-red-600 font-bold hover:underline cursor-pointer text-[10px]"
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-[#8C857B] italic py-2">No supporting images added yet. Click "+ ADD WEBP IMAGE" to add extra views.</p>
+                    )}
                   </div>
                 </div>
               </div>
 
               {/* ── RIGHT COLUMN (1 Col): Placement & Categorization ── */}
               <div className="space-y-6">
-                {/* 1. Placement Card (Image 2) */}
+                {/* 1. Placement Card */}
                 <div className="rounded-xl border border-[#E8E3DA] bg-white p-6 shadow-xs">
-                  <h3 className="font-serif text-2xl font-normal text-[#1A1817] mb-6">Placement</h3>
+                  <div className="flex items-center justify-between mb-1">
+                    <h3 className="font-serif text-2xl font-normal text-[#1A1817]">Placement</h3>
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-[#8C857B] bg-[#FAF8F5] px-2 py-0.5 rounded border border-[#E2DDD5]">Optional</span>
+                  </div>
+                  <p className="text-xs text-[#8C857B] mb-6">Select optional promotional placements for this product</p>
                   <div className="space-y-3.5 text-xs text-[#1A1817]">
-                    <label className="flex items-center gap-3 cursor-pointer select-none">
-                      <input type="checkbox" defaultChecked className="h-4 w-4 rounded border-[#C5C0B6] accent-[#1A1817]" />
-                      <span>Show on Homepage</span>
-                    </label>
-                    <label className="flex items-center gap-3 cursor-pointer select-none">
-                      <input type="checkbox" className="h-4 w-4 rounded border-[#C5C0B6] accent-[#1A1817]" />
-                      <span>Mark as Bestseller</span>
-                    </label>
-                    <label className="flex items-center gap-3 cursor-pointer select-none">
-                      <input type="checkbox" className="h-4 w-4 rounded border-[#C5C0B6] accent-[#1A1817]" />
-                      <span>Mark as New Arrival</span>
-                    </label>
-                    <label className="flex items-center gap-3 cursor-pointer select-none">
-                      <input type="checkbox" className="h-4 w-4 rounded border-[#C5C0B6] accent-[#1A1817]" />
-                      <span>Featured Product</span>
-                    </label>
+                    {[
+                      { id: '1', label: 'Show on Homepage' },
+                      { id: '2', label: 'Mark as Bestseller' },
+                      { id: '3', label: 'Mark as New Arrival' },
+                      { id: '4', label: 'Featured Product' },
+                    ].map((item) => {
+                      const isChecked = (form.placements || []).some(
+                        (p) => String(p.placements_id || p.id || p) === item.id
+                      );
+                      return (
+                        <label key={item.id} className="flex items-center gap-3 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {
+                              const current = form.placements || [];
+                              const exists = current.some(
+                                (p) => String(p.placements_id || p.id || p) === item.id
+                              );
+                              let updated;
+                              if (exists) {
+                                updated = current.filter(
+                                  (p) => String(p.placements_id || p.id || p) !== item.id
+                                );
+                              } else {
+                                updated = [...current, { placements_id: item.id }];
+                              }
+                              onChange({ target: { name: 'placements', value: updated } });
+                            }}
+                            className="h-4 w-4 rounded border-[#C5C0B6] accent-[#1A1817]"
+                          />
+                          <span>{item.label}</span>
+                        </label>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -1060,7 +1142,7 @@ function ProductView({
                   {/* OCCASIONS */}
                   <div className="border-t border-[#F0ECE1] pt-5">
                     <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-[#8C857B]">
-                      OCCASIONS
+                      OCCASIONS <span className="text-red-600 font-bold">*</span>
                     </label>
                     {occasionsList && occasionsList.length > 0 ? (
                       <div className="flex flex-wrap gap-2 text-xs">
@@ -1094,7 +1176,7 @@ function ProductView({
                   {/* CATEGORIES */}
                   <div className="border-t border-[#F0ECE1] pt-5">
                     <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-[#8C857B]">
-                      CATEGORIES
+                      CATEGORIES <span className="text-red-600 font-bold">*</span>
                     </label>
                     {categoriesList && categoriesList.length > 0 ? (
                       <div className="flex flex-wrap gap-2 text-xs">
@@ -1179,16 +1261,23 @@ function ProductView({
               </div>
 
               {/* Bottom Modal Footer Bar */}
-              <div className="lg:col-span-3 mt-6 flex items-center justify-end border-t border-[#E2DDD5] pt-6">
+              <div className="lg:col-span-3 mt-6 flex items-center justify-end gap-3 border-t border-[#E2DDD5] pt-6">
+                <button
+                  type="button"
+                  onClick={onCloseModal}
+                  className="rounded-full border border-[#E2DDD5] bg-white hover:bg-[#F7F5F0] px-4 py-1.5 font-serif text-xs font-normal tracking-wide text-[#1A1817] transition cursor-pointer shadow-xs"
+                >
+                  Cancel
+                </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="rounded-lg bg-gradient-to-r from-[#C99C4B] via-[#B88B3A] to-[#8C6627] px-6 py-3 text-xs font-bold uppercase tracking-widest text-white shadow-md hover:from-[#B88B3A] hover:to-[#7A571F] active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50 flex items-center gap-2 border border-[#E5C78A]/40"
+                  className="rounded-full bg-[#1A1817] hover:bg-[#38332E] px-4 py-1.5 font-serif text-xs font-normal tracking-wide text-white transition shadow-xs cursor-pointer disabled:opacity-50 flex items-center gap-2"
                 >
-                  <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <svg className="h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                   </svg>
-                  {submitting ? 'SAVING...' : 'PUBLISH PRODUCT'}
+                  {submitting ? 'Saving...' : editingId ? 'Update Product' : 'Publish Product'}
                 </button>
               </div>
             </form>
@@ -1225,6 +1314,14 @@ function ProductView({
           </div>
         </div>
       )}
+
+      {/* Logout Confirmation Modal */}
+      <LogoutConfirmModal
+        isOpen={showLogoutConfirm}
+        onClose={() => setShowLogoutConfirm(false)}
+        onConfirm={handleConfirmLogout}
+        submitting={loggingOut}
+      />
     </div>
   );
 }

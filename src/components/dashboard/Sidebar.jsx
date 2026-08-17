@@ -1,6 +1,5 @@
-import { useState } from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { useAuthContext } from '../../context/AuthContext';
+import { useState, useRef } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 
 const navItems = [
   {
@@ -70,74 +69,80 @@ const navItems = [
 ];
 
 function Sidebar() {
-  const navigate = useNavigate();
   const location = useLocation();
-  const { logout } = useAuthContext();
 
   const isReportsActive = location.pathname.startsWith('/reports');
   const [reportsOpen, setReportsOpen] = useState(isReportsActive);
+  const reportsRef = useRef(null);
 
-  const handleLogout = async () => {
-    if (logout) {
-      await logout();
-    }
-    navigate('/login');
+  const toggleReports = () => {
+    setReportsOpen((prev) => {
+      const next = !prev;
+      if (next) {
+        setTimeout(() => {
+          reportsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 100);
+      }
+      return next;
+    });
   };
 
   return (
-    <aside className="flex min-h-screen w-64 flex-col justify-between border-r border-[#E2DDD5] bg-[#EFECE6] px-5 py-8 text-[#2D2926] select-none">
-      <div>
-        {/* Branding Header */}
-        <div className="mb-10 px-2">
-          <h1 className="font-serif text-2xl font-bold tracking-wider text-[#2D2926] uppercase leading-tight">
-            Sri Parshwa
-          </h1>
-          <h2 className="font-serif text-2xl font-bold tracking-wider text-[#2D2926] uppercase leading-tight">
-            Cards
-          </h2>
-          <p className="mt-2 text-[11px] font-medium uppercase tracking-widest text-[#8C857B]">
-            Managing Craftsmanship
-          </p>
-        </div>
+    <aside className="sticky top-0 flex h-screen w-64 flex-col justify-between border-r border-[#E2DDD5] bg-[#EFECE6] px-5 py-6 text-[#2D2926] select-none flex-shrink-0 z-30">
+      {/* Sticky Branding Header */}
+      <div className="sticky top-0 bg-[#EFECE6] pt-1 pb-4 z-10 px-2 border-b border-[#E2DDD5]/60 mb-4">
+        <h1 className="font-serif text-2xl font-bold tracking-wider text-[#2D2926] uppercase leading-tight">
+          Sri Parshwa
+        </h1>
+        <h2 className="font-serif text-2xl font-bold tracking-wider text-[#2D2926] uppercase leading-tight">
+          Cards
+        </h2>
+        <p className="mt-1.5 text-[11px] font-medium uppercase tracking-widest text-[#8C857B]">
+          Managing Craftsmanship
+        </p>
+      </div>
 
-        {/* Navigation Items */}
-        <nav className="space-y-1.5">
+      {/* Navigation Items (Scrollable area) */}
+      <div className="flex-1 overflow-y-auto pr-1">
+        <nav className="space-y-1.5 font-sans">
           {navItems.map(({ label, to, exact, icon }) => (
             <NavLink
               key={label}
               to={to}
               end={exact}
               className={({ isActive }) =>
-                `flex items-center gap-3.5 px-4 py-3 text-xs font-semibold tracking-wide transition-all duration-200 ${isActive
-                  ? 'border-l-4 border-[#C99C4B] bg-[#F5CE93] text-[#1A1817] shadow-sm font-bold'
+                `flex items-center gap-3.5 px-4 py-3 text-xs font-medium font-sans tracking-wide transition-all duration-200 ${isActive
+                  ? 'border-l-4 border-[#C99C4B] bg-[#F5CE93] text-[#1A1817] shadow-xs font-semibold'
                   : 'border-l-4 border-transparent text-[#59534C] hover:bg-[#E5E1DA] hover:text-[#1A1817]'
                 }`
               }
             >
-              <span className="flex-shrink-0">{icon}</span>
-              <span>{label}</span>
+              <span className="flex-shrink-0 text-[#59534C]">{icon}</span>
+              <span className="text-xs font-medium font-sans text-[#2D2926] leading-none">{label}</span>
             </NavLink>
           ))}
 
           {/* Reports Collapsible Dropdown */}
-          <div>
+          <div ref={reportsRef}>
             <button
               type="button"
-              onClick={() => setReportsOpen((prev) => !prev)}
-              className={`w-full flex items-center justify-between px-4 py-3 text-xs font-semibold tracking-wide transition-all duration-200 cursor-pointer ${
+              onClick={toggleReports}
+              className={`w-full flex items-center justify-between px-4 py-3 text-xs font-medium font-sans tracking-wide transition-all duration-200 cursor-pointer ${
                 isReportsActive
-                  ? 'border-l-4 border-[#C99C4B] bg-[#F5CE93] text-[#1A1817] shadow-sm font-bold'
+                  ? 'border-l-4 border-[#C99C4B] bg-[#F5CE93] text-[#1A1817] shadow-xs font-semibold'
                   : 'border-l-4 border-transparent text-[#59534C] hover:bg-[#E5E1DA] hover:text-[#1A1817]'
               }`}
             >
-              <div className="flex items-center gap-3.5">
-                <svg className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <span>Reports</span>
+              <div className="flex items-center gap-3.5 font-sans">
+                <span className="flex-shrink-0 text-[#59534C]">
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </span>
+                <span className="text-xs font-medium font-sans text-[#2D2926] leading-none">Reports</span>
               </div>
               <svg
-                className={`h-4 w-4 transition-transform duration-200 ${reportsOpen ? 'rotate-180' : ''}`}
+                className={`h-4 w-4 transition-transform duration-200 text-[#59534C] ${reportsOpen ? 'rotate-180' : ''}`}
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -152,9 +157,9 @@ function Sidebar() {
                 <NavLink
                   to="/reports/enquiry"
                   className={({ isActive }) =>
-                    `flex items-center gap-2.5 px-3 py-2 text-xs font-medium rounded-md transition-all duration-200 ${
+                    `flex items-center gap-2.5 px-3 py-2 text-xs font-medium font-sans tracking-wide rounded-md transition-all duration-200 ${
                       isActive
-                        ? 'bg-[#1A1817] text-white font-bold shadow-xs'
+                        ? 'bg-[#1A1817] text-white shadow-xs font-semibold'
                         : 'text-[#59534C] hover:bg-[#E5E1DA] hover:text-[#1A1817]'
                     }`
                   }
@@ -163,7 +168,7 @@ function Sidebar() {
                     <rect x="3" y="4" width="18" height="16" rx="2" />
                     <path d="M3 6l9 6 9-6" />
                   </svg>
-                  <span>Enquiry Reports</span>
+                  <span className="text-xs font-medium font-sans">Enquiry Reports</span>
                 </NavLink>
               </div>
             )}
@@ -171,23 +176,15 @@ function Sidebar() {
         </nav>
       </div>
 
-      {/* Profile & Logout Footer */}
-      <div className="border-t border-[#E2DDD5] pt-6 px-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#E5E1DA] font-serif text-xs font-bold text-[#2D2926] border border-[#D5CFC5]">
-              EA
-            </div>
-            <div className="flex flex-col">
-              <span className="text-xs font-bold text-[#2D2926]">Admin User</span>
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="text-left text-[11px] font-medium text-[#8C857B] hover:text-[#2D2926] transition-colors"
-              >
-                Log out
-              </button>
-            </div>
+      {/* Admin Profile Footer (Without Logout button) */}
+      <div className="border-t border-[#E2DDD5] pt-4 px-2 bg-[#EFECE6] flex-shrink-0 mt-auto">
+        <div className="flex items-center gap-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#E5E1DA] font-serif text-xs font-bold text-[#2D2926] border border-[#D5CFC5]">
+            A
+          </div>
+          <div className="flex flex-col">
+            <span className="text-xs font-bold text-[#2D2926]">Admin</span>
+            <span className="text-[10px] text-[#8C857B]">Manager</span>
           </div>
         </div>
       </div>

@@ -1,12 +1,31 @@
 import { useEffect, useRef, useState } from 'react';
-
 import Sidebar from '../dashboard/Sidebar';
+import LogoutConfirmModal from '../common/LogoutConfirmModal';
+
+function formatDateDDMMYYYY(dateStr) {
+  if (!dateStr) return 'N/A';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) {
+    const match = String(dateStr).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      return `${match[3]}-${match[2]}-${match[1]}`;
+    }
+    return String(dateStr);
+  }
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}-${month}-${year}`;
+}
 
 const TOGGLEABLE_COLUMNS = [
   { key: 'slno', label: 'Sl.no' },
   { key: 'name', label: 'Customer Name' },
   { key: 'mobile', label: 'Mobile' },
   { key: 'email', label: 'Email' },
+  { key: 'occasion', label: 'Occasion' },
+  { key: 'weddingDate', label: 'Wedding Date' },
+  { key: 'createdDate', label: 'Enquiry Date' },
   { key: 'message', label: 'Message' },
   { key: 'status', label: 'Status' },
 ];
@@ -16,37 +35,61 @@ function EnquiryView({
   loading,
   onToggleStatus,
   onDelete,
+  onLogout,
   onProfile,
   currentPage = 1,
   onPageChange,
   totalPages = 1,
   totalCount = 0,
+  searchQuery = '',
+  onSearchChange,
+  statusFilter,
 }) {
-  const [searchQuery, setSearchQuery] = useState('');
   const [columnsOpen, setColumnsOpen] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+
   const [visibleCols, setVisibleCols] = useState({
     slno: true,
     name: true,
     mobile: true,
     email: true,
+    occasion: true,
+    weddingDate: true,
+    createdDate: true,
     message: true,
     status: true,
   });
   const dropdownRef = useRef(null);
 
+  const handleConfirmLogout = async () => {
+    setLoggingOut(true);
+    if (onLogout) await onLogout();
+    setLoggingOut(false);
+    setShowLogoutConfirm(false);
+  };
+
   const itemsPerPage = 10;
   const isServerPaginated = typeof onPageChange === 'function';
   const filteredItems = items.filter((item) => {
+    const status = item.enquiryStatus || item.enquiry_status || item.status || 'Pending';
+    if (statusFilter && String(status).toLowerCase() !== String(statusFilter).toLowerCase()) {
+      return false;
+    }
     const name = item.enquiryFullName || item.full_name || item.name || '';
     const mobile = item.enquiryMobile || item.mobile || '';
     const email = item.enquiryEmail || item.email || '';
     const msg = item.enquiryMessage || item.message || '';
+    const weddingDate = item.enquiryWeddingDate || item.wedding_date || item.weddingDate || '';
+    const createdDate = item.enquiryCreatedDate || item.created_at || item.createdDate || '';
     const q = searchQuery.toLowerCase();
     return (
       name.toLowerCase().includes(q) ||
       mobile.toLowerCase().includes(q) ||
       email.toLowerCase().includes(q) ||
-      msg.toLowerCase().includes(q)
+      msg.toLowerCase().includes(q) ||
+      weddingDate.toLowerCase().includes(q) ||
+      createdDate.toLowerCase().includes(q)
     );
   });
 
@@ -80,23 +123,41 @@ function EnquiryView({
         <div className="mb-8 flex items-center justify-between">
           <div>
             <h1 className="font-serif text-3xl font-normal tracking-tight text-[#1A1817]">
-              Customer Enquiries
+              Enquiry Overview
             </h1>
-            <p className="mt-1 text-xs text-[#8C857B]">View and manage bespoke invitation inquiry requests</p>
+            <p className="mt-1 text-xs text-[#8C857B]">View and manage customer inquiry requests</p>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={onProfile}
-              className="flex items-center gap-3 rounded-lg bg-white px-3 py-1.5 shadow-sm border border-[#E5E0D8] hover:border-[#C99C4B] transition cursor-pointer text-left"
+              className="flex items-center gap-2.5 rounded-full bg-white px-3.5 py-1.5 shadow-xs border border-[#E5E0D8] hover:border-[#C99C4B] transition cursor-pointer text-left"
               title="View Profile"
             >
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#EFECE6] text-xs font-serif font-bold text-[#1A1817] border border-[#D5CFC5]">
-                EA
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#EFECE6] text-[11px] font-serif font-bold text-[#1A1817] border border-[#D5CFC5]">
+                A
               </div>
               <div className="pr-1">
-                <p className="text-xs font-bold text-[#1A1817] leading-tight">Admin User</p>
+                <p className="text-xs font-bold text-[#1A1817] leading-tight">Admin</p>
+                <p className="text-[10px] text-[#8C857B] leading-tight">Manager</p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowLogoutConfirm(true)}
+              className="flex items-center gap-2.5 rounded-full bg-white px-3.5 py-1.5 shadow-xs border border-[#E5E0D8] hover:border-red-500 hover:bg-red-50/40 transition cursor-pointer text-left"
+              title="Log out"
+            >
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-red-50 text-red-600 border border-red-200">
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+              </div>
+              <div className="pr-1">
+                <p className="text-xs font-bold text-red-600 leading-tight">Logout</p>
+                <p className="text-[10px] text-red-500/80 leading-tight">Exit</p>
               </div>
             </button>
           </div>
@@ -105,8 +166,7 @@ function EnquiryView({
         {/* MAIN CARD */}
         <div className="rounded-xl border border-[#E8E3DA] bg-white shadow-xs">
           <div className="border-b border-[#F0ECE1] px-6 py-4 flex items-center justify-between">
-            <h2 className="font-serif text-xl font-normal text-[#1A1817]">Enquiries List</h2>
-            <span className="text-xs text-[#8C857B]">{filteredItems.length} Enquiries</span>
+            <h2 className="font-serif text-xl font-normal text-[#1A1817]">Enquiry List</h2>
           </div>
 
           {/* Search + Action row */}
@@ -122,7 +182,7 @@ function EnquiryView({
                 type="text"
                 placeholder="Search by name, email, mobile..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => onSearchChange ? onSearchChange(e.target.value) : null}
                 className="w-full rounded-md border border-[#E2DDD5] bg-white py-2 pl-10 pr-4 text-xs text-[#1A1817] outline-none placeholder:text-[#A39C93] focus:border-[#1A1817] transition"
               />
             </div>
@@ -132,12 +192,12 @@ function EnquiryView({
                 <button
                   type="button"
                   onClick={() => setColumnsOpen((o) => !o)}
-                  className={`flex items-center gap-2 rounded-md border px-4 py-2 text-xs font-semibold uppercase tracking-wider transition shadow-xs cursor-pointer ${columnsOpen
+                  className={`flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 font-serif text-xs font-normal tracking-wide transition shadow-xs cursor-pointer ${columnsOpen
                     ? 'border-[#1A1817] bg-[#F5CE93] text-[#1A1817]'
-                    : 'border-[#E2DDD5] bg-white text-[#59534C] hover:bg-[#F7F5F0]'
+                    : 'border-[#E2DDD5] bg-white text-[#1A1817] hover:bg-[#F7F5F0]'
                     }`}
                 >
-                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <rect x="3" y="3" width="7" height="18" rx="1" />
                     <rect x="14" y="3" width="7" height="18" rx="1" />
                   </svg>
@@ -174,14 +234,17 @@ function EnquiryView({
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-xs">
               <thead className="border-b border-[#E2DDD5] bg-[#EFECE6]">
-                <tr className="text-[11px] font-semibold uppercase tracking-wider text-[#59534C]">
-                  {visibleCols.slno && <th className="w-16 px-6 py-3.5">Sl.no</th>}
-                  {visibleCols.name && <th className="px-6 py-3.5">Customer</th>}
-                  {visibleCols.mobile && <th className="px-6 py-3.5">Mobile</th>}
-                  {visibleCols.email && <th className="px-6 py-3.5">Email</th>}
-                  {visibleCols.message && <th className="px-6 py-3.5">Message</th>}
-                  {visibleCols.status && <th className="w-36 px-6 py-3.5">Status</th>}
-                  <th className="w-24 px-6 py-3.5 text-right">Actions</th>
+                <tr className="text-[10px] font-semibold uppercase tracking-wider text-[#59534C]">
+                  {visibleCols.slno && <th className="w-16 px-6 py-2.5">Sl.no</th>}
+                  {visibleCols.name && <th className="px-6 py-2.5">Customer</th>}
+                  {visibleCols.mobile && <th className="px-6 py-2.5">Mobile</th>}
+                  {visibleCols.email && <th className="px-6 py-2.5">Email</th>}
+                  {visibleCols.occasion && <th className="px-6 py-2.5">Occasion</th>}
+                  {visibleCols.weddingDate && <th className="px-6 py-2.5">Wedding Date</th>}
+                  {visibleCols.createdDate && <th className="px-6 py-2.5">Enquiry Date</th>}
+                  {visibleCols.message && <th className="px-6 py-2.5">Message</th>}
+                  {visibleCols.status && <th className="w-36 px-6 py-2.5">Status</th>}
+                  <th className="w-24 px-6 py-2.5 text-right">Actions</th>
                 </tr>
               </thead>
 
@@ -214,15 +277,18 @@ function EnquiryView({
                     const email =
                       item.enquiryEmail || item.enquiry_email || item.email || 'N/A';
 
-                    const message =
+                    const occasion =
                       item.enquiryOccassion ||
                       item.enquiryOccasion ||
                       item.enquiry_occassion ||
+                      item.occasion ||
+                      'N/A';
+
+                    const message =
                       item.enquiryMessage ||
                       item.enquiry_message ||
                       item.message ||
                       item.remarks ||
-                      item.occasion ||
                       'N/A';
 
                     const status =
@@ -231,14 +297,43 @@ function EnquiryView({
                       item.status ||
                       'New';
 
+                    const weddingDateRaw =
+                      item.enquiryWeddingDate ||
+                      item.enquiry_wedding_date ||
+                      item.weddingDate ||
+                      item.wedding_date ||
+                      '';
+                    const weddingDateFormatted = formatDateDDMMYYYY(weddingDateRaw);
+
+                    const createdDateRaw =
+                      item.enquiryCreatedDate ||
+                      item.enquiry_created_date ||
+                      item.created_at ||
+                      item.createdAt ||
+                      item.createdDate ||
+                      item.date ||
+                      '';
+                    const createdDateFormatted = formatDateDDMMYYYY(createdDateRaw);
+
                     return (
                       <tr key={item.id || index} className="hover:bg-[#FAF8F5] transition-colors">
-                        {visibleCols.slno && <td className="px-6 py-4 font-mono text-[#8C857B]">{startIndex + index + 1}</td>}
-                        {visibleCols.name && <td className="px-6 py-4 font-bold text-[#1A1817]">{name}</td>}
-                        {visibleCols.mobile && <td className="px-6 py-4 text-[#59534C] font-mono">{mobile}</td>}
-                        {visibleCols.email && <td className="px-6 py-4 text-[#59534C]">{email}</td>}
+                        {visibleCols.slno && <td className="px-6 py-4 font-mono text-[#8C857B] text-xs">{startIndex + index + 1}</td>}
+                        {visibleCols.name && <td className="px-6 py-4 font-bold text-[#1A1817] text-xs">{name}</td>}
+                        {visibleCols.mobile && <td className="px-6 py-4 text-[#59534C] font-mono text-xs">{mobile}</td>}
+                        {visibleCols.email && <td className="px-6 py-4 text-[#59534C] text-xs">{email}</td>}
+                        {visibleCols.occasion && <td className="px-6 py-4 text-[#59534C] text-xs">{occasion}</td>}
+                        {visibleCols.weddingDate && (
+                          <td className="px-6 py-4 text-[#59534C] font-mono text-xs whitespace-nowrap">
+                            {weddingDateFormatted}
+                          </td>
+                        )}
+                        {visibleCols.createdDate && (
+                          <td className="px-6 py-4 text-[#59534C] font-mono text-xs whitespace-nowrap">
+                            {createdDateFormatted}
+                          </td>
+                        )}
                         {visibleCols.message && (
-                          <td className="max-w-xs px-6 py-4 text-[#8C857B] truncate" title={message}>
+                          <td className="max-w-xs px-6 py-4 text-[#59534C] text-xs truncate" title={message}>
                             {message}
                           </td>
                         )}
@@ -309,15 +404,15 @@ function EnquiryView({
                 type="button"
                 onClick={() => onPageChange && onPageChange(currentPage - 1)}
                 disabled={currentPage <= 1}
-                className="inline-flex items-center gap-1 rounded-lg border border-[#E2DDD5] bg-white px-3.5 py-1.5 text-xs font-semibold text-[#1A1817] shadow-xs hover:bg-[#EFECE6] disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
+                className="inline-flex items-center gap-1 rounded-full border border-[#E2DDD5] bg-white px-3 py-1 text-[10px] font-semibold text-[#1A1817] shadow-xs hover:bg-[#EFECE6] disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
               >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
                 </svg>
                 Previous
               </button>
 
-              <div className="flex items-center gap-1 px-3 text-xs font-semibold text-[#59534C]">
+              <div className="flex items-center gap-1 px-3 text-[10px] font-semibold text-[#59534C]">
                 <span>Page</span>
                 <span className="text-[#1A1817] font-bold">{currentPage}</span>
                 <span>of</span>
@@ -328,10 +423,10 @@ function EnquiryView({
                 type="button"
                 onClick={() => onPageChange && onPageChange(currentPage + 1)}
                 disabled={currentPage >= calculatedTotalPages}
-                className="inline-flex items-center gap-1 rounded-lg border border-[#E2DDD5] bg-white px-3.5 py-1.5 text-xs font-semibold text-[#1A1817] shadow-xs hover:bg-[#EFECE6] disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
+                className="inline-flex items-center gap-1 rounded-full border border-[#E2DDD5] bg-white px-3 py-1 text-[10px] font-semibold text-[#1A1817] shadow-xs hover:bg-[#EFECE6] disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
               >
                 Next
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                 </svg>
               </button>
@@ -339,6 +434,13 @@ function EnquiryView({
           </div>
         </div>
       </main>
+
+      <LogoutConfirmModal
+        isOpen={showLogoutConfirm}
+        onClose={() => setShowLogoutConfirm(false)}
+        onConfirm={handleConfirmLogout}
+        submitting={loggingOut}
+      />
     </div>
   );
 }

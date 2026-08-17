@@ -55,18 +55,19 @@ function CardTypePage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
+  const [searchQuery, setSearchQuery] = useState('');
 
   /* ───────────── FETCH DATA ───────────── */
-  const fetchData = async (page = 1) => {
+  const fetchData = async (page = 1, search = searchQuery) => {
     setLoading(true);
     try {
       const [listResponse] = await Promise.all([
-        getCardTypes(page),
+        getCardTypes(page, search),
         getActiveCardTypes().catch(() => []),
         getActivePlacements().catch(() => []),
       ]);
 
-      console.log(`[CardTypePage] GET /cardtype?page=${page} response:`, listResponse);
+      console.log(`[CardTypePage] GET /cardtype?page=${page}&search=${search} response:`, listResponse);
       const listData = extractList(listResponse);
       setItems(listData);
 
@@ -87,8 +88,13 @@ function CardTypePage() {
   };
 
   useEffect(() => {
-    fetchData(currentPage);
-  }, [currentPage]);
+    fetchData(currentPage, searchQuery);
+  }, [currentPage, searchQuery]);
+
+  const handleSearchChange = (query) => {
+    setSearchQuery(query);
+    setCurrentPage(1);
+  };
 
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= totalPages && newPage !== currentPage) {
@@ -239,6 +245,8 @@ function CardTypePage() {
       onPageChange={handlePageChange}
       totalPages={totalPages}
       totalCount={totalCount}
+      searchQuery={searchQuery}
+      onSearchChange={handleSearchChange}
     />
   );
 }

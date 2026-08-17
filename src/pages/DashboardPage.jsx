@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import Sidebar from '../components/dashboard/Sidebar';
+import LogoutConfirmModal from '../components/common/LogoutConfirmModal';
 import { useAuthContext } from '../context/AuthContext';
 import { useSessionTimeout } from '../hooks/useSessionTimeout';
 import { getCategories } from '../services/categoryApi';
@@ -169,6 +170,16 @@ function DashboardPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { isAuthenticated, logout } = useAuthContext();
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const handleConfirmLogout = async () => {
+    setLoggingOut(true);
+    if (logout) await logout();
+    setLoggingOut(false);
+    setShowLogoutConfirm(false);
+    navigate('/login');
+  };
   const [showSessionModal, setShowSessionModal] = useState(false);
   const [warningMessage, setWarningMessage] = useState('');
 
@@ -311,35 +322,41 @@ function DashboardPage() {
             <h1 className="font-serif text-3xl font-normal tracking-tight text-[#1A1817]">
               Dashboard Overview
             </h1>
-            <p className="mt-1 text-xs text-[#8C857B]">Welcome back, Atelier Admin.</p>
+            <p className="mt-1 text-xs text-[#8C857B]">Welcome back, Admin.</p>
           </div>
 
-          <div className="flex items-center gap-4">
-            {/* Notification Bell */}
-            <button
-              type="button"
-              className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-white shadow-xs border border-[#E5E0D8] text-[#59534C] hover:text-[#1A1817] transition cursor-pointer"
-              title="Notifications"
-            >
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-              </svg>
-              <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-red-600 ring-2 ring-white" />
-            </button>
-
+          <div className="flex items-center gap-3">
             {/* Profile Avatar Pill */}
             <button
               type="button"
               onClick={() => navigate('/profile')}
-              className="flex items-center gap-3 rounded-lg bg-white px-3 py-1.5 shadow-sm border border-[#E5E0D8] hover:border-[#C99C4B] transition cursor-pointer text-left"
+              className="flex items-center gap-2.5 rounded-full bg-white px-3.5 py-1.5 shadow-xs border border-[#E5E0D8] hover:border-[#C99C4B] transition cursor-pointer text-left"
               title="View Profile"
             >
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#EFECE6] text-xs font-serif font-bold text-[#1A1817] border border-[#D5CFC5]">
-                EA
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#EFECE6] text-[11px] font-serif font-bold text-[#1A1817] border border-[#D5CFC5]">
+                A
               </div>
               <div className="pr-1">
-                <p className="text-xs font-bold text-[#1A1817] leading-tight">Admin User</p>
+                <p className="text-xs font-bold text-[#1A1817] leading-tight">Admin</p>
                 <p className="text-[10px] text-[#8C857B] leading-tight">Manager</p>
+              </div>
+            </button>
+
+            {/* Logout Button (Same style as Admin Manager button) */}
+            <button
+              type="button"
+              onClick={() => setShowLogoutConfirm(true)}
+              className="flex items-center gap-2.5 rounded-full bg-white px-3.5 py-1.5 shadow-xs border border-[#E5E0D8] hover:border-red-500 hover:bg-red-50/40 transition cursor-pointer text-left"
+              title="Log out"
+            >
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-red-50 text-red-600 border border-red-200">
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+              </div>
+              <div className="pr-1">
+                <p className="text-xs font-bold text-red-600 leading-tight">Logout</p>
+                <p className="text-[10px] text-red-500/80 leading-tight">Exit</p>
               </div>
             </button>
           </div>
@@ -367,12 +384,15 @@ function DashboardPage() {
             {/* ── 4 STATS METRIC CARDS ROW ── */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {/* Card 1: Total Products */}
-              <div className="rounded-xl border border-[#E8E3DA] bg-white p-5 shadow-xs hover:border-[#C99C4B] transition-all flex flex-col justify-between">
+              <div
+                onClick={() => navigate('/products')}
+                className="rounded-xl border border-[#E8E3DA] bg-white p-5 shadow-xs hover:border-[#C99C4B] hover:shadow-md transition-all flex flex-col justify-between cursor-pointer group"
+              >
                 <div className="flex items-start justify-between">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-[#8C857B]">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-[#8C857B] group-hover:text-[#1A1817] transition-colors">
                     Total Products
                   </p>
-                  <div className="text-[#8C857B]">
+                  <div className="text-[#8C857B] group-hover:text-[#C99C4B] transition-colors">
                     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                     </svg>
@@ -380,14 +400,16 @@ function DashboardPage() {
                 </div>
                 <div className="mt-4">
                   <p className="font-serif text-3xl font-normal text-[#1A1817]">{totalProducts}</p>
-                  <p className="mt-1 text-[11px] text-[#8C857B]">All Catalog Products</p>
                 </div>
               </div>
 
               {/* Card 2: Active Products */}
-              <div className="rounded-xl border border-[#E8E3DA] bg-white p-5 shadow-xs hover:border-[#C99C4B] transition-all flex flex-col justify-between">
+              <div
+                onClick={() => navigate('/products?status=Active')}
+                className="rounded-xl border border-[#E8E3DA] bg-white p-5 shadow-xs hover:border-emerald-500 hover:shadow-md transition-all flex flex-col justify-between cursor-pointer group"
+              >
                 <div className="flex items-start justify-between">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-[#8C857B]">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-[#8C857B] group-hover:text-emerald-700 transition-colors">
                     Active Products
                   </p>
                   <div className="text-emerald-600">
@@ -398,17 +420,19 @@ function DashboardPage() {
                 </div>
                 <div className="mt-4">
                   <p className="font-serif text-3xl font-normal text-[#1A1817]">{totalActiveProducts}</p>
-                  <p className="mt-1 text-[11px] text-[#8C857B]">Active Catalog Products</p>
                 </div>
               </div>
 
-              {/* Card 3: New Enquiries (GOLD HIGHLIGHTED CARD) */}
-              <div className="rounded-xl border-2 border-[#E5B56E] bg-[#F5CE93] p-5 shadow-sm transition-all flex flex-col justify-between text-[#1A1817]">
+              {/* Card 3: New Enquiries (NEUTRAL LUXURY CARD - ORANGE REMOVED) */}
+              <div
+                onClick={() => navigate('/enquiry')}
+                className="rounded-xl border border-[#E8E3DA] bg-white p-5 shadow-xs hover:border-[#C99C4B] hover:shadow-md transition-all flex flex-col justify-between cursor-pointer group text-[#1A1817]"
+              >
                 <div className="flex items-start justify-between">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-[#594320]">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-[#8C857B] group-hover:text-[#1A1817] transition-colors">
                     New Enquiries
                   </p>
-                  <div className="text-[#594320]">
+                  <div className="text-[#8C857B] group-hover:text-[#C99C4B] transition-colors">
                     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                     </svg>
@@ -416,17 +440,19 @@ function DashboardPage() {
                 </div>
                 <div className="mt-4">
                   <p className="font-serif text-3xl font-normal text-[#1A1817]">{totalNewEnquiry}</p>
-                  <p className="mt-1 text-[11px] text-[#594320] font-medium">Pending response</p>
                 </div>
               </div>
 
               {/* Card 4: Completed Enquiries */}
-              <div className="rounded-xl border border-[#E8E3DA] bg-white p-5 shadow-xs hover:border-[#C99C4B] transition-all flex flex-col justify-between">
+              <div
+                onClick={() => navigate('/enquiry?status=Complete')}
+                className="rounded-xl border border-[#E8E3DA] bg-white p-5 shadow-xs hover:border-emerald-500 hover:shadow-md transition-all flex flex-col justify-between cursor-pointer group"
+              >
                 <div className="flex items-start justify-between">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-[#8C857B]">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-[#8C857B] group-hover:text-emerald-700 transition-colors">
                     Completed Enquiries
                   </p>
-                  <div className="text-[#1A1817]">
+                  <div className="text-emerald-600">
                     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
@@ -434,7 +460,6 @@ function DashboardPage() {
                 </div>
                 <div className="mt-4">
                   <p className="font-serif text-3xl font-normal text-[#1A1817]">{totalCompleteEnquiry}</p>
-                  <p className="mt-1 text-[11px] text-[#8C857B]">Fulfilled enquiries</p>
                 </div>
               </div>
             </div>
@@ -586,6 +611,13 @@ function DashboardPage() {
           </div>
         </div>
       )}
+
+      <LogoutConfirmModal
+        isOpen={showLogoutConfirm}
+        onClose={() => setShowLogoutConfirm(false)}
+        onConfirm={handleConfirmLogout}
+        submitting={loggingOut}
+      />
     </div>
   );
 }

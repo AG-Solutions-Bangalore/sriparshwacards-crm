@@ -53,17 +53,18 @@ function CategoryPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
+  const [searchQuery, setSearchQuery] = useState('');
 
   /* ───────────── FETCH DATA ───────────── */
-  const fetchData = async (page = 1) => {
+  const fetchData = async (page = 1, search = searchQuery) => {
     setLoading(true);
     try {
       const [listResponse] = await Promise.all([
-        getCategories(page),
+        getCategories(page, search),
         getActiveCategories().catch(() => []),
       ]);
 
-      console.log(`[CategoryPage] GET /category?page=${page} response:`, listResponse);
+      console.log(`[CategoryPage] GET /category?page=${page}&search=${search} response:`, listResponse);
       const listData = extractList(listResponse);
       setItems(listData);
 
@@ -84,8 +85,13 @@ function CategoryPage() {
   };
 
   useEffect(() => {
-    fetchData(currentPage);
-  }, [currentPage]);
+    fetchData(currentPage, searchQuery);
+  }, [currentPage, searchQuery]);
+
+  const handleSearchChange = (query) => {
+    setSearchQuery(query);
+    setCurrentPage(1);
+  };
 
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= totalPages && newPage !== currentPage) {
@@ -231,6 +237,8 @@ function CategoryPage() {
       onPageChange={handlePageChange}
       totalPages={totalPages}
       totalCount={totalCount}
+      searchQuery={searchQuery}
+      onSearchChange={handleSearchChange}
     />
   );
 }

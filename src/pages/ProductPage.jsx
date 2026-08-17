@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import ProductView from '../components/product/ProductView';
 import { useAuthContext } from '../context/AuthContext';
@@ -47,12 +47,14 @@ const emptyForm = {
   categories_ids: '',
   card_types_ids: '',
   product_status: 'Active',
-  images: [{ product_images: '', product_images_sort_order: '1', product_images_status: 'Active' }],
-  placements: [{ placements_id: '1' }],
+  images: [],
+  placements: [],
 };
 
 function ProductPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const statusFilter = searchParams.get('status');
   const { logout } = useAuthContext();
 
   const [items, setItems] = useState([]);
@@ -71,18 +73,19 @@ function ProductPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const fetchData = async (page = 1) => {
+  const fetchData = async (page = 1, search = searchQuery) => {
     setLoading(true);
     try {
       const [prodRes, occRes, catRes, ctRes] = await Promise.all([
-        getProducts(page),
+        getProducts(page, search),
         getOccasions().catch(() => getActiveOccasions().catch(() => [])),
         getCategories().catch(() => getActiveCategories().catch(() => [])),
         getCardTypes().catch(() => getActiveCardTypes().catch(() => [])),
       ]);
 
-      console.log(`[ProductPage] GET /products?page=${page} response:`, prodRes);
+      console.log(`[ProductPage] GET /products?page=${page}&search=${search} response:`, prodRes);
       const rawList = extractList(prodRes);
       setItems(rawList.filter((item) => !deletedIds.has(item.id)));
 
@@ -113,8 +116,13 @@ function ProductPage() {
   };
 
   useEffect(() => {
-    fetchData(currentPage);
-  }, [currentPage]);
+    fetchData(currentPage, searchQuery);
+  }, [currentPage, searchQuery]);
+
+  const handleSearchChange = (query) => {
+    setSearchQuery(query);
+    setCurrentPage(1);
+  };
 
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= totalPages && newPage !== currentPage) {
@@ -203,7 +211,25 @@ function ProductPage() {
     setSubmitting(true);
 
     try {
-      if (!form.product_name?.trim()) throw new Error('Product name is required.');
+      if (!form.product_name?.trim()) {
+        throw new Error('Invitation Name is required.');
+      }
+      if (!form.product_made_of?.trim()) {
+        throw new Error('Made of / Craftsmanship details are required.');
+      }
+      if (!form.occasions_ids || !form.occasions_ids.trim()) {
+        throw new Error('Please select at least one Occasion.');
+      }
+      if (!form.categories_ids || !form.categories_ids.trim()) {
+        throw new Error('Please select at least one Category.');
+      }
+
+      const validImages = (form.images || []).filter(
+        (img) => (img.product_images && String(img.product_images).trim()) || img._file
+      );
+      if (validImages.length === 0) {
+        throw new Error('At least one product image is required in Media Gallery.');
+      }
 
       let response;
       if (editingItem) {
@@ -261,7 +287,7 @@ function ProductPage() {
         });
       }
       if (mappedImages.length === 0) {
-        mappedImages = [{ product_images: '', product_images_sort_order: '1', product_images_status: 'Active' }];
+        mappedImages = [];
       }
 
       setForm({
@@ -272,7 +298,7 @@ function ProductPage() {
         card_types_ids: item?.card_types_ids || '',
         product_status: item?.product_status || 'Active',
         images: mappedImages,
-        placements: Array.isArray(item?.placements) && item.placements.length > 0 ? item.placements : [{ placements_id: '1' }],
+        placements: Array.isArray(item?.placements) ? item.placements : [],
       });
 
       setIsModalOpen(true);
@@ -361,6 +387,9 @@ function ProductPage() {
       onPageChange={handlePageChange}
       totalPages={totalPages}
       totalCount={totalCount}
+      searchQuery={searchQuery}
+      onSearchChange={handleSearchChange}
+      statusFilter={statusFilter}
       occasionsList={occasionsList}
       categoriesList={categoriesList}
       cardTypesList={cardTypesList}
