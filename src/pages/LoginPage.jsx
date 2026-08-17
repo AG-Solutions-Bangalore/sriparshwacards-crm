@@ -35,11 +35,15 @@ function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#f4f0ea] px-4 py-12">
-      <div className="w-full max-w-md rounded-3xl border border-stone-200 bg-white p-8 shadow-[0_20px_45px_rgba(0,0,0,0.08)]">
+    <div className="flex min-h-screen items-center justify-center bg-[#F7F5F0] px-4 py-12 font-sans select-none">
+      <div className="w-full max-w-md rounded-xl border border-[#E2DDD5] bg-white p-10 shadow-lg">
         <div className="mb-8 text-center">
-          <h1 className="text-3xl font-semibold tracking-tight text-stone-900">Sri Parshwa Cards</h1>
-          <p className="mt-2 text-sm text-stone-600">Admin Portal</p>
+          <h1 className="font-serif text-3xl font-bold tracking-wider uppercase text-[#1A1817]">
+            Sri Parshwa Cards
+          </h1>
+          <p className="mt-2 text-xs font-semibold uppercase tracking-widest text-[#8C857B]">
+            Managing Craftsmanship • Admin Portal
+          </p>
         </div>
 
         <LoginForm
@@ -54,3 +58,4 @@ function LoginPage() {
 }
 
 export default LoginPage;
+
