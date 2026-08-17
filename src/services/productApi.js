@@ -102,8 +102,13 @@ export const buildProductFormData = (payload) => {
 };
 
 /* ───────────── PRODUCTS ───────────── */
-export const getProducts = async (page = 1) => {
-  const response = await api.get('/products', { params: { page } });
+export const getProducts = async (page = 1, search = '') => {
+  const params = { page };
+  if (search) {
+    params.search = search;
+    params.q = search;
+  }
+  const response = await api.get('/products', { params });
   return response.data;
 };
 
@@ -174,8 +179,13 @@ export const deleteProductPlacement = async (placementId) => {
 };
 
 /* ───────────── ENQUIRIES ───────────── */
-export const getEnquiries = async (page = 1) => {
-  const response = await api.get('/enquiry', { params: { page } });
+export const getEnquiries = async (page = 1, search = '') => {
+  const params = { page };
+  if (search) {
+    params.search = search;
+    params.q = search;
+  }
+  const response = await api.get('/enquiry', { params });
   return response.data;
 };
 

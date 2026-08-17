@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-
 import Sidebar from '../dashboard/Sidebar';
+import LogoutConfirmModal from '../common/LogoutConfirmModal';
 
 /* Columns that can be toggled. 'actions' is always visible. */
 const TOGGLEABLE_COLUMNS = [
@@ -60,15 +60,26 @@ function CardTypeView({
   onProfile,
   isModalOpen,
   onOpenModal,
+  onCloseModal,
   onDelete,
   submitting,
   currentPage = 1,
   onPageChange,
   totalPages = 1,
   totalCount = 0,
+  searchQuery = '',
+  onSearchChange,
 }) {
-  const [searchQuery, setSearchQuery] = useState('');
   const [columnsOpen, setColumnsOpen] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const handleConfirmLogout = async () => {
+    setLoggingOut(true);
+    if (onLogout) await onLogout();
+    setLoggingOut(false);
+    setShowLogoutConfirm(false);
+  };
   const [visibleCols, setVisibleCols] = useState({
     slno: true,
     image: true,
@@ -123,19 +134,36 @@ function CardTypeView({
             <p className="mt-1 text-xs text-[#8C857B]">Manage invitation styles & card formats</p>
           </div>
 
-          {/* Admin badge + logout */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={onProfile}
-              className="flex items-center gap-3 rounded-lg bg-white px-3 py-1.5 shadow-sm border border-[#E5E0D8] hover:border-[#C99C4B] transition cursor-pointer text-left"
+              className="flex items-center gap-2.5 rounded-full bg-white px-3.5 py-1.5 shadow-xs border border-[#E5E0D8] hover:border-[#C99C4B] transition cursor-pointer text-left"
               title="View Profile"
             >
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#EFECE6] text-xs font-serif font-bold text-[#1A1817] border border-[#D5CFC5]">
-                EA
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#EFECE6] text-[11px] font-serif font-bold text-[#1A1817] border border-[#D5CFC5]">
+                A
               </div>
               <div className="pr-1">
-                <p className="text-xs font-bold text-[#1A1817] leading-tight">Admin User</p>
+                <p className="text-xs font-bold text-[#1A1817] leading-tight">Admin</p>
+                <p className="text-[10px] text-[#8C857B] leading-tight">Manager</p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowLogoutConfirm(true)}
+              className="flex items-center gap-2.5 rounded-full bg-white px-3.5 py-1.5 shadow-xs border border-[#E5E0D8] hover:border-red-500 hover:bg-red-50/40 transition cursor-pointer text-left"
+              title="Log out"
+            >
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-red-50 text-red-600 border border-red-200">
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+              </div>
+              <div className="pr-1">
+                <p className="text-xs font-bold text-red-600 leading-tight">Logout</p>
+                <p className="text-[10px] text-red-500/80 leading-tight">Exit</p>
               </div>
             </button>
           </div>
@@ -146,7 +174,6 @@ function CardTypeView({
           {/* Card header bar */}
           <div className="border-b border-[#F0ECE1] px-6 py-4 flex items-center justify-between">
             <h2 className="font-serif text-xl font-normal text-[#1A1817]">Card Type List</h2>
-            <span className="text-xs text-[#8C857B]">{filteredItems.length} Card Types</span>
           </div>
 
           {/* Search + actions row */}
@@ -161,10 +188,9 @@ function CardTypeView({
               </span>
               <input
                 type="text"
-                id="card-type-search"
                 placeholder="Search card type..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => onSearchChange ? onSearchChange(e.target.value) : null}
                 className="w-full rounded-md border border-[#E2DDD5] bg-white py-2 pl-10 pr-4 text-xs text-[#1A1817] outline-none placeholder:text-[#A39C93] focus:border-[#1A1817] transition"
               />
             </div>
@@ -177,13 +203,13 @@ function CardTypeView({
                   type="button"
                   id="columns-toggle-btn"
                   onClick={() => setColumnsOpen((o) => !o)}
-                  className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-xs font-semibold uppercase tracking-wider transition shadow-xs cursor-pointer ${
+                  className={`flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 font-serif text-xs font-normal tracking-wide transition shadow-xs cursor-pointer ${
                     columnsOpen
                       ? 'border-[#1A1817] bg-[#F5CE93] text-[#1A1817]'
-                      : 'border-[#E2DDD5] bg-white text-[#59534C] hover:bg-[#F7F5F0]'
+                      : 'border-[#E2DDD5] bg-white text-[#1A1817] hover:bg-[#F7F5F0]'
                   }`}
                 >
-                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none"
+                  <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none"
                     stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <rect x="3" y="3" width="7" height="18" rx="1" />
                     <rect x="14" y="3" width="7" height="18" rx="1" />
@@ -224,10 +250,10 @@ function CardTypeView({
                 type="button"
                 id="add-card-type-btn"
                 onClick={onOpenModal}
-                className="flex items-center gap-2 rounded-lg bg-[#1A1817] hover:bg-[#38332E] px-5 py-2 text-xs font-semibold uppercase tracking-widest text-white transition shadow-xs cursor-pointer"
+                className="flex items-center gap-1.5 rounded-full bg-[#1A1817] hover:bg-[#38332E] px-4 py-1.5 font-serif text-xs font-normal tracking-wide text-white transition shadow-xs cursor-pointer"
               >
-                <span className="text-sm font-bold leading-none">+</span>
-                ADD CARD TYPE
+                <span className="font-serif text-xs leading-none">+</span>
+                Add Card Type
               </button>
             </div>
           </div>
@@ -236,20 +262,20 @@ function CardTypeView({
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-xs">
               <thead className="border-b border-[#E2DDD5] bg-[#EFECE6]">
-                <tr className="text-[11px] font-semibold uppercase tracking-wider text-[#59534C]">
+                <tr className="text-[10px] font-semibold uppercase tracking-wider text-[#59534C]">
                   {visibleCols.slno && (
-                    <th className="w-20 px-6 py-3.5">Sl.no</th>
+                    <th className="w-20 px-6 py-2.5">Sl.no</th>
                   )}
                   {visibleCols.image && (
-                    <th className="w-32 pl-6 pr-10 py-3.5">Image</th>
+                    <th className="w-24 px-6 py-2.5">Image</th>
                   )}
                   {visibleCols.name && (
-                    <th className="px-6 py-3.5 text-center">Card Type Name</th>
+                    <th className="px-6 py-2.5">Card Type Name</th>
                   )}
                   {visibleCols.status && (
-                    <th className="w-48 px-6 py-3.5">Status</th>
+                    <th className="w-36 px-6 py-2.5">Status</th>
                   )}
-                  <th className="w-32 px-6 py-3.5 text-right">Actions</th>
+                  <th className="w-32 px-6 py-2.5 text-right">Actions</th>
                 </tr>
               </thead>
 
@@ -297,7 +323,7 @@ function CardTypeView({
                           </td>
                         )}
                         {visibleCols.name && (
-                          <td className="px-6 py-4 font-bold text-[#1A1817] text-center">{name}</td>
+                          <td className="px-6 py-4 font-bold text-[#1A1817] text-xs">{name}</td>
                         )}
                         {visibleCols.status && (
                           <td className="px-6 py-4">
@@ -358,15 +384,15 @@ function CardTypeView({
                 type="button"
                 onClick={() => onPageChange && onPageChange(currentPage - 1)}
                 disabled={currentPage <= 1}
-                className="inline-flex items-center gap-1 rounded-lg border border-[#E2DDD5] bg-white px-3.5 py-1.5 text-xs font-semibold text-[#1A1817] shadow-xs hover:bg-[#EFECE6] disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
+                className="inline-flex items-center gap-1 rounded-full border border-[#E2DDD5] bg-white px-3 py-1 text-[10px] font-semibold text-[#1A1817] shadow-xs hover:bg-[#EFECE6] disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
               >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
                 </svg>
                 Previous
               </button>
 
-              <div className="flex items-center gap-1 px-3 text-xs font-semibold text-[#59534C]">
+              <div className="flex items-center gap-1 px-3 text-[10px] font-semibold text-[#59534C]">
                 <span>Page</span>
                 <span className="text-[#1A1817] font-bold">{currentPage}</span>
                 <span>of</span>
@@ -377,10 +403,10 @@ function CardTypeView({
                 type="button"
                 onClick={() => onPageChange && onPageChange(currentPage + 1)}
                 disabled={currentPage >= calculatedTotalPages}
-                className="inline-flex items-center gap-1 rounded-lg border border-[#E2DDD5] bg-white px-3.5 py-1.5 text-xs font-semibold text-[#1A1817] shadow-xs hover:bg-[#EFECE6] disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
+                className="inline-flex items-center gap-1 rounded-full border border-[#E2DDD5] bg-white px-3 py-1 text-[10px] font-semibold text-[#1A1817] shadow-xs hover:bg-[#EFECE6] disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
               >
                 Next
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                 </svg>
               </button>
@@ -414,6 +440,7 @@ function CardTypeView({
                   id="card_types"
                   name="card_types"
                   type="text"
+                  autoFocus
                   value={form.card_types}
                   onChange={onChange}
                   placeholder="Enter card type name"
@@ -445,15 +472,21 @@ function CardTypeView({
                   </div>
                 ) : null}
                 <label className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-[#E2DDD5] bg-white p-4 text-center cursor-pointer hover:border-[#1A1817] transition select-none">
-                  <span className="text-xs font-semibold text-[#1A1817]">+ Upload Card Type Image</span>
-                  <span className="text-[10px] text-[#8C857B] mt-0.5">Click to select image file</span>
+                  <span className="text-xs font-semibold text-[#1A1817]">+ Upload Card Type WebP Image</span>
+                  <span className="text-[10px] text-[#8C857B] mt-0.5">Only .webp images are allowed</span>
                   <input
                     type="file"
-                    accept="image/*"
+                    accept=".webp,image/webp"
                     className="hidden"
                     onChange={(e) => {
                       const file = e.target.files?.[0];
                       if (file) {
+                        const isWebp = file.type.includes('webp') || file.name.toLowerCase().endsWith('.webp');
+                        if (!isWebp) {
+                          toast.error('Only WebP images (.webp) are allowed!');
+                          e.target.value = '';
+                          return;
+                        }
                         const reader = new FileReader();
                         reader.onload = (event) => {
                           onChange({ target: { name: 'card_types_images', value: event.target.result } });
@@ -483,20 +516,20 @@ function CardTypeView({
                 </div>
               ) : null}
 
-              <div className="flex items-center gap-3 pt-4">
+              <div className="flex items-center justify-center gap-3 pt-4">
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="flex-1 bg-[#1A1817] px-5 py-2.5 text-xs font-bold uppercase tracking-widest text-white hover:bg-[#38332E] transition shadow-xs cursor-pointer disabled:opacity-50"
+                  className="rounded-full bg-[#1A1817] hover:bg-[#38332E] px-6 py-1.5 font-serif text-xs font-normal tracking-wide text-white transition shadow-xs cursor-pointer disabled:opacity-50 min-w-[90px]"
                 >
-                  {submitting ? 'SAVING...' : editingId ? 'UPDATE' : 'CREATE'}
+                  {submitting ? 'Saving...' : editingId ? 'Update' : 'Create'}
                 </button>
                 <button
                   type="button"
                   onClick={onCloseModal}
-                  className="flex-1 border border-[#2D2926] bg-white px-5 py-2.5 text-xs font-bold uppercase tracking-widest text-[#1A1817] hover:bg-[#EFECE6] transition cursor-pointer"
+                  className="rounded-full border border-[#E2DDD5] bg-white hover:bg-[#F7F5F0] px-6 py-1.5 font-serif text-xs font-normal tracking-wide text-[#1A1817] transition cursor-pointer shadow-xs min-w-[90px]"
                 >
-                  CANCEL
+                  Cancel
                 </button>
               </div>
             </form>
@@ -531,6 +564,13 @@ function CardTypeView({
           </div>
         </div>
       )}
+
+      <LogoutConfirmModal
+        isOpen={showLogoutConfirm}
+        onClose={() => setShowLogoutConfirm(false)}
+        onConfirm={handleConfirmLogout}
+        submitting={loggingOut}
+      />
     </div>
   );
 }

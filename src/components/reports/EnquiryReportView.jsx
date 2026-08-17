@@ -1,4 +1,22 @@
 import Sidebar from '../dashboard/Sidebar';
+import LogoutConfirmModal from '../common/LogoutConfirmModal';
+import { useState } from 'react';
+
+function formatDateDDMMYYYY(dateStr) {
+  if (!dateStr) return 'N/A';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) {
+    const match = String(dateStr).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      return `${match[3]}-${match[2]}-${match[1]}`;
+    }
+    return String(dateStr);
+  }
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}-${month}-${year}`;
+}
 
 export function downloadExcel(data, fromDate, toDate) {
   if (!data || data.length === 0) return;
@@ -8,10 +26,11 @@ export function downloadExcel(data, fromDate, toDate) {
     'Customer Name',
     'Mobile',
     'Email',
-    'Occasion / Message',
+    'Occasion',
     'Wedding Date',
+    'Enquiry Date',
+    'Message',
     'Status',
-    'Created At',
   ];
 
   const rows = data.map((item, index) => {
@@ -35,36 +54,44 @@ export function downloadExcel(data, fromDate, toDate) {
       item.enquiry_email ||
       item.email ||
       'N/A';
-    const message =
+    const occasion =
       item.enquiryOccassion ||
       item.enquiryOccasion ||
       item.enquiry_occassion ||
+      item.occasion ||
+      'N/A';
+    const message =
       item.enquiryMessage ||
       item.enquiry_message ||
       item.message ||
       item.remarks ||
-      item.occasion ||
       'N/A';
-    const weddingDate =
+    const weddingDate = formatDateDDMMYYYY(
       item.enquiryWeddingDate ||
       item.enquiry_wedding_date ||
       item.wedding_date ||
-      'N/A';
+      item.weddingDate
+    );
+    const createdDate = formatDateDDMMYYYY(
+      item.enquiryCreatedDate ||
+      item.enquiry_created_date ||
+      item.created_at ||
+      item.createdAt ||
+      item.createdDate
+    );
     const status =
       item.enquiryStatus || item.enquiry_status || item.status || 'New';
-    const createdAt = item.created_at
-      ? new Date(item.created_at).toLocaleDateString()
-      : 'N/A';
 
     return [
       index + 1,
       `"${String(name).replace(/"/g, '""')}"`,
       `"${String(mobile).replace(/"/g, '""')}"`,
       `"${String(email).replace(/"/g, '""')}"`,
-      `"${String(message).replace(/"/g, '""')}"`,
+      `"${String(occasion).replace(/"/g, '""')}"`,
       `"${String(weddingDate).replace(/"/g, '""')}"`,
+      `"${String(createdDate).replace(/"/g, '""')}"`,
+      `"${String(message).replace(/"/g, '""')}"`,
       `"${String(status).replace(/"/g, '""')}"`,
-      `"${String(createdAt).replace(/"/g, '""')}"`,
     ].join(',');
   });
 
@@ -95,8 +122,18 @@ function EnquiryReportView({
   appliedFilters,
   onApplyPreset,
   onProfile,
+  onLogout,
 }) {
   const { fromDate, toDate } = appliedFilters;
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const handleConfirmLogout = async () => {
+    setLoggingOut(true);
+    if (onLogout) await onLogout();
+    setLoggingOut(false);
+    setShowLogoutConfirm(false);
+  };
 
   const handleExport = () => {
     downloadExcel(items, fromDate, toDate);
@@ -118,18 +155,36 @@ function EnquiryReportView({
             </p>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={onProfile}
-              className="flex items-center gap-3 rounded-lg bg-white px-3 py-1.5 shadow-sm border border-[#E5E0D8] hover:border-[#C99C4B] transition cursor-pointer text-left"
+              className="flex items-center gap-2.5 rounded-full bg-white px-3.5 py-1.5 shadow-xs border border-[#E5E0D8] hover:border-[#C99C4B] transition cursor-pointer text-left"
               title="View Profile"
             >
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#EFECE6] text-xs font-serif font-bold text-[#1A1817] border border-[#D5CFC5]">
-                EA
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#EFECE6] text-[11px] font-serif font-bold text-[#1A1817] border border-[#D5CFC5]">
+                A
               </div>
               <div className="pr-1">
-                <p className="text-xs font-bold text-[#1A1817] leading-tight">Admin User</p>
+                <p className="text-xs font-bold text-[#1A1817] leading-tight">Admin</p>
+                <p className="text-[10px] text-[#8C857B] leading-tight">Manager</p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowLogoutConfirm(true)}
+              className="flex items-center gap-2.5 rounded-full bg-white px-3.5 py-1.5 shadow-xs border border-[#E5E0D8] hover:border-red-500 hover:bg-red-50/40 transition cursor-pointer text-left"
+              title="Log out"
+            >
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-red-50 text-red-600 border border-red-200">
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+              </div>
+              <div className="pr-1">
+                <p className="text-xs font-bold text-red-600 leading-tight">Logout</p>
+                <p className="text-[10px] text-red-500/80 leading-tight">Exit</p>
               </div>
             </button>
           </div>
@@ -143,28 +198,28 @@ function EnquiryReportView({
               <button
                 type="button"
                 onClick={() => onApplyPreset('today')}
-                className="rounded-md border border-[#E2DDD5] bg-[#FAF8F5] px-3 py-1 text-xs font-medium text-[#59534C] hover:bg-[#EFECE6] transition cursor-pointer"
+                className="rounded-full border border-[#E2DDD5] bg-white px-3.5 py-1.5 font-serif text-xs font-normal tracking-wide text-[#1A1817] hover:bg-[#F7F5F0] transition cursor-pointer shadow-xs"
               >
                 Today
               </button>
               <button
                 type="button"
                 onClick={() => onApplyPreset('week')}
-                className="rounded-md border border-[#E2DDD5] bg-[#FAF8F5] px-3 py-1 text-xs font-medium text-[#59534C] hover:bg-[#EFECE6] transition cursor-pointer"
+                className="rounded-full border border-[#E2DDD5] bg-white px-3.5 py-1.5 font-serif text-xs font-normal tracking-wide text-[#1A1817] hover:bg-[#F7F5F0] transition cursor-pointer shadow-xs"
               >
                 This Week
               </button>
               <button
                 type="button"
                 onClick={() => onApplyPreset('month')}
-                className="rounded-md border border-[#E2DDD5] bg-[#FAF8F5] px-3 py-1 text-xs font-medium text-[#59534C] hover:bg-[#EFECE6] transition cursor-pointer"
+                className="rounded-full border border-[#E2DDD5] bg-white px-3.5 py-1.5 font-serif text-xs font-normal tracking-wide text-[#1A1817] hover:bg-[#F7F5F0] transition cursor-pointer shadow-xs"
               >
                 This Month
               </button>
               <button
                 type="button"
                 onClick={() => onApplyPreset('all')}
-                className="rounded-md border border-[#E2DDD5] bg-[#FAF8F5] px-3 py-1 text-xs font-medium text-[#59534C] hover:bg-[#EFECE6] transition cursor-pointer"
+                className="rounded-full border border-[#E2DDD5] bg-white px-3.5 py-1.5 font-serif text-xs font-normal tracking-wide text-[#1A1817] hover:bg-[#F7F5F0] transition cursor-pointer shadow-xs"
               >
                 All Time
               </button>
@@ -225,12 +280,12 @@ function EnquiryReportView({
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full rounded-md bg-[#1A1817] hover:bg-[#38332E] py-2.5 px-4 text-xs font-bold uppercase tracking-widest text-white transition shadow-xs cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                className="w-full rounded-full bg-[#1A1817] hover:bg-[#38332E] py-1.5 px-6 font-serif text-xs font-normal tracking-wide text-white transition shadow-xs cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 min-w-[110px]"
               >
                 <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                 </svg>
-                {loading ? 'FETCHING...' : 'SUBMIT FILTER'}
+                {loading ? 'Fetching...' : 'Submit Filter'}
               </button>
             </div>
           </form>
@@ -253,12 +308,12 @@ function EnquiryReportView({
               type="button"
               onClick={handleExport}
               disabled={!hasSubmitted || items.length === 0}
-              className="flex items-center gap-2 rounded-lg bg-emerald-700 hover:bg-emerald-800 px-5 py-2.5 text-xs font-bold uppercase tracking-widest text-white transition shadow-sm cursor-pointer disabled:opacity-50"
+              className="flex items-center gap-2 rounded-full bg-emerald-700 hover:bg-emerald-800 px-5 py-1.5 font-serif text-xs font-normal tracking-wide text-white transition shadow-xs cursor-pointer disabled:opacity-50"
             >
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
               </svg>
-              DOWNLOAD EXCEL (.XLSX)
+              Download Excel (.xlsx)
             </button>
           </div>
 
@@ -271,8 +326,10 @@ function EnquiryReportView({
                   <th className="px-6 py-3.5">Customer</th>
                   <th className="px-6 py-3.5">Mobile</th>
                   <th className="px-6 py-3.5">Email</th>
-                  <th className="px-6 py-3.5">Occasion / Message</th>
+                  <th className="px-6 py-3.5">Occasion</th>
                   <th className="px-6 py-3.5">Wedding Date</th>
+                  <th className="px-6 py-3.5">Enquiry Date</th>
+                  <th className="px-6 py-3.5">Message</th>
                   <th className="w-32 px-6 py-3.5 text-right">Status</th>
                 </tr>
               </thead>
@@ -315,22 +372,34 @@ function EnquiryReportView({
                       item.email ||
                       'N/A';
 
-                    const message =
+                    const occasion =
                       item.enquiryOccassion ||
                       item.enquiryOccasion ||
                       item.enquiry_occassion ||
+                      item.occasion ||
+                      'N/A';
+
+                    const message =
                       item.enquiryMessage ||
                       item.enquiry_message ||
                       item.message ||
                       item.remarks ||
-                      item.occasion ||
                       'N/A';
 
-                    const weddingDate =
+                    const weddingDate = formatDateDDMMYYYY(
                       item.enquiryWeddingDate ||
                       item.enquiry_wedding_date ||
                       item.wedding_date ||
-                      'N/A';
+                      item.weddingDate
+                    );
+
+                    const createdDate = formatDateDDMMYYYY(
+                      item.enquiryCreatedDate ||
+                      item.enquiry_created_date ||
+                      item.created_at ||
+                      item.createdAt ||
+                      item.createdDate
+                    );
 
                     const status =
                       item.enquiryStatus ||
@@ -342,14 +411,16 @@ function EnquiryReportView({
 
                     return (
                       <tr key={item.id || index} className="hover:bg-[#FAF8F5] transition-colors">
-                        <td className="px-6 py-4 font-mono text-[#8C857B]">{index + 1}</td>
-                        <td className="px-6 py-4 font-bold text-[#1A1817]">{name}</td>
-                        <td className="px-6 py-4 text-[#59534C] font-mono">{mobile}</td>
-                        <td className="px-6 py-4 text-[#59534C]">{email}</td>
-                        <td className="max-w-xs px-6 py-4 text-[#8C857B] truncate" title={message}>
+                        <td className="px-6 py-4 font-mono text-[#8C857B] text-xs">{index + 1}</td>
+                        <td className="px-6 py-4 font-bold text-[#1A1817] text-xs">{name}</td>
+                        <td className="px-6 py-4 text-[#59534C] font-mono text-xs">{mobile}</td>
+                        <td className="px-6 py-4 text-[#59534C] text-xs">{email}</td>
+                        <td className="px-6 py-4 text-[#59534C] text-xs">{occasion}</td>
+                        <td className="px-6 py-4 text-[#59534C] font-mono text-xs whitespace-nowrap">{weddingDate}</td>
+                        <td className="px-6 py-4 text-[#59534C] font-mono text-xs whitespace-nowrap">{createdDate}</td>
+                        <td className="max-w-xs px-6 py-4 text-[#59534C] text-xs truncate" title={message}>
                           {message}
                         </td>
-                        <td className="px-6 py-4 text-[#8C857B]">{weddingDate}</td>
                         <td className="px-6 py-4 text-right">
                           <span
                             className={`inline-block rounded border px-2.5 py-0.5 text-[9px] font-bold tracking-wider ${statusText.includes('NEW') || statusText.includes('PENDING')
@@ -377,6 +448,13 @@ function EnquiryReportView({
           </div>
         </div>
       </main>
+
+      <LogoutConfirmModal
+        isOpen={showLogoutConfirm}
+        onClose={() => setShowLogoutConfirm(false)}
+        onConfirm={handleConfirmLogout}
+        submitting={loggingOut}
+      />
     </div>
   );
 }

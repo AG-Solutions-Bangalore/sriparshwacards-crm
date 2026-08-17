@@ -52,17 +52,18 @@ function OccasionPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
+  const [searchQuery, setSearchQuery] = useState('');
 
   /* ───────────── FETCH ───────────── */
-  const fetchData = async (page = 1) => {
+  const fetchData = async (page = 1, search = searchQuery) => {
     setLoading(true);
     try {
       const [listResponse] = await Promise.all([
-        getOccasions(page),
+        getOccasions(page, search),
         getActiveOccasions().catch(() => []),
       ]);
 
-      console.log(`[OccasionPage] GET /occasion?page=${page} raw response:`, listResponse);
+      console.log(`[OccasionPage] GET /occasion?page=${page}&search=${search} raw response:`, listResponse);
 
       const listData = extractList(listResponse);
       setItems(listData);
@@ -84,8 +85,13 @@ function OccasionPage() {
   };
 
   useEffect(() => {
-    fetchData(currentPage);
-  }, [currentPage]);
+    fetchData(currentPage, searchQuery);
+  }, [currentPage, searchQuery]);
+
+  const handleSearchChange = (query) => {
+    setSearchQuery(query);
+    setCurrentPage(1);
+  };
 
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= totalPages && newPage !== currentPage) {
@@ -240,6 +246,8 @@ function OccasionPage() {
       onPageChange={handlePageChange}
       totalPages={totalPages}
       totalCount={totalCount}
+      searchQuery={searchQuery}
+      onSearchChange={handleSearchChange}
     />
   );
 }

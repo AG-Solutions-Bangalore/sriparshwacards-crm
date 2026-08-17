@@ -1,7 +1,12 @@
 import { api } from './api';
 
-export const getCategories = async (page = 1) => {
-  const response = await api.get('/category', { params: { page } });
+export const getCategories = async (page = 1, search = '') => {
+  const params = { page };
+  if (search) {
+    params.search = search;
+    params.q = search;
+  }
+  const response = await api.get('/category', { params });
   return response.data;
 };
 

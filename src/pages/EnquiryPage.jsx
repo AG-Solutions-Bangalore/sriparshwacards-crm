@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import EnquiryView from '../components/enquiry/EnquiryView';
 import { useAuthContext } from '../context/AuthContext';
@@ -28,6 +28,8 @@ function extractErrorMessage(err) {
 
 function EnquiryPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const statusFilter = searchParams.get('status');
   const { logout } = useAuthContext();
 
   const [items, setItems] = useState([]);
@@ -36,12 +38,13 @@ function EnquiryPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const fetchData = async (page = 1) => {
+  const fetchData = async (page = 1, search = searchQuery) => {
     setLoading(true);
     try {
-      const res = await getEnquiries(page);
-      console.log(`[EnquiryPage] GET /enquiry?page=${page} response:`, res);
+      const res = await getEnquiries(page, search);
+      console.log(`[EnquiryPage] GET /enquiry?page=${page}&search=${search} response:`, res);
       const rawList = extractList(res);
       setItems(rawList.filter((item) => !deletedIds.has(item.id)));
 
@@ -61,8 +64,13 @@ function EnquiryPage() {
   };
 
   useEffect(() => {
-    fetchData(currentPage);
-  }, [currentPage]);
+    fetchData(currentPage, searchQuery);
+  }, [currentPage, searchQuery]);
+
+  const handleSearchChange = (query) => {
+    setSearchQuery(query);
+    setCurrentPage(1);
+  };
 
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= totalPages && newPage !== currentPage) {
@@ -127,6 +135,9 @@ function EnquiryPage() {
       onPageChange={handlePageChange}
       totalPages={totalPages}
       totalCount={totalCount}
+      searchQuery={searchQuery}
+      onSearchChange={handleSearchChange}
+      statusFilter={statusFilter}
     />
   );
 }
