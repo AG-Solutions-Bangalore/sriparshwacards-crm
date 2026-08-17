@@ -59,6 +59,17 @@ textarea {
   border-radius: 9999px;
 }
 
+@keyframes marqueeText {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+
+.animate-moving-text {
+  display: inline-block;
+  white-space: nowrap;
+  animation: marqueeText 4s linear infinite;
+}
+
 ::-webkit-scrollbar-thumb:hover {
   background: #C4BBB0;
 }

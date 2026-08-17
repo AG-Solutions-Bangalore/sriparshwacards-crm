@@ -5,9 +5,47 @@ import Sidebar from '../dashboard/Sidebar';
 /* Columns that can be toggled. 'actions' is always visible. */
 const TOGGLEABLE_COLUMNS = [
   { key: 'slno', label: 'Sl.no' },
+  { key: 'image', label: 'Image' },
   { key: 'name', label: 'Card Type Name' },
   { key: 'status', label: 'Status' },
 ];
+
+function getImageUrl(path) {
+  if (!path) return '';
+  if (typeof path !== 'string') return '';
+  if (path.startsWith('data:') || path.startsWith('blob:') || path.startsWith('http://') || path.startsWith('https://')) {
+    return path;
+  }
+  let clean = path.trim().replace(/^\//, '').replace(/^public\//, '');
+  clean = clean.replace(/^(assets\/images\/card_types_images|card_types_images|card_types|cardtype)\//, '');
+  return `https://sriparshwacards.in/crmapi/public/assets/images/card_types_images/${clean}`;
+}
+
+function handleImageError(e, originalPath) {
+  if (!originalPath || typeof originalPath !== 'string') return;
+  if (originalPath.startsWith('data:') || originalPath.startsWith('blob:')) return;
+
+  const siteUrl = 'https://sriparshwacards.in/crmapi/public';
+  let clean = originalPath.trim().replace(/^\//, '').replace(/^public\//, '');
+  clean = clean.replace(/^(assets\/images\/card_types_images|card_types_images|card_types|cardtype)\//, '');
+
+  const triedCount = parseInt(e.target.getAttribute('data-try-count') || '0', 10);
+  const candidates = [
+    `${siteUrl}/assets/images/card_types_images/${clean}`,
+    `${siteUrl}/storage/card_types_images/${clean}`,
+    `${siteUrl}/storage/${clean}`,
+    `${siteUrl}/uploads/${clean}`,
+    `${siteUrl}/${clean}`,
+  ];
+
+  if (triedCount < candidates.length) {
+    e.target.setAttribute('data-try-count', String(triedCount + 1));
+    const nextUrl = candidates[triedCount];
+    if (nextUrl && nextUrl !== e.target.src) {
+      e.target.src = nextUrl;
+    }
+  }
+}
 
 function CardTypeView({
   form,
@@ -22,18 +60,37 @@ function CardTypeView({
   onProfile,
   isModalOpen,
   onOpenModal,
-  onCloseModal,
   onDelete,
   submitting,
+  currentPage = 1,
+  onPageChange,
+  totalPages = 1,
+  totalCount = 0,
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [columnsOpen, setColumnsOpen] = useState(false);
   const [visibleCols, setVisibleCols] = useState({
     slno: true,
+    image: true,
     name: true,
     status: true,
   });
+  const [previewModalUrl, setPreviewModalUrl] = useState(null);
   const dropdownRef = useRef(null);
+
+  const itemsPerPage = 10;
+  const isServerPaginated = typeof onPageChange === 'function';
+  const filteredItems = items.filter((item) => {
+    const name = item.card_types || item.card_type_name || item.name || '';
+    return name.toLowerCase().includes(searchQuery.toLowerCase());
+  });
+
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedItems = isServerPaginated ? filteredItems : filteredItems.slice(startIndex, startIndex + itemsPerPage);
+  const calculatedTotalPages = isServerPaginated ? totalPages : Math.max(1, Math.ceil(filteredItems.length / itemsPerPage));
+  const displayTotal = isServerPaginated ? (totalCount || items.length) : filteredItems.length;
+  const startNum = startIndex + 1;
+  const endNum = isServerPaginated ? Math.min(currentPage * itemsPerPage, displayTotal) : Math.min(startIndex + itemsPerPage, filteredItems.length);
 
   /* Close columns dropdown on outside click */
   useEffect(() => {
@@ -50,12 +107,6 @@ function CardTypeView({
   const toggleCol = (key) => {
     setVisibleCols((prev) => ({ ...prev, [key]: !prev[key] }));
   };
-
-  /* Filtered rows */
-  const filteredItems = items.filter((item) => {
-    const name = item.card_types || item.card_type_name || item.name || '';
-    return name.toLowerCase().includes(searchQuery.toLowerCase());
-  });
 
   return (
     <div className="flex min-h-screen bg-[#F7F5F0] text-[#1A1817] font-sans">
@@ -77,24 +128,15 @@ function CardTypeView({
             <button
               type="button"
               onClick={onProfile}
-              className="flex items-center gap-3 rounded-full bg-white px-3 py-1.5 shadow-sm border border-[#E5E0D8] hover:border-[#C99C4B] transition cursor-pointer text-left"
+              className="flex items-center gap-3 rounded-lg bg-white px-3 py-1.5 shadow-sm border border-[#E5E0D8] hover:border-[#C99C4B] transition cursor-pointer text-left"
               title="View Profile"
             >
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#EFECE6] text-xs font-serif font-bold text-[#1A1817] border border-[#D5CFC5]">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#EFECE6] text-xs font-serif font-bold text-[#1A1817] border border-[#D5CFC5]">
                 EA
               </div>
               <div className="pr-1">
                 <p className="text-xs font-bold text-[#1A1817] leading-tight">Admin User</p>
-                <p className="text-[10px] text-[#8C857B] leading-tight">Manager</p>
               </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={onLogout}
-              className="rounded-none bg-[#1A1817] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-white transition hover:bg-[#38332E] cursor-pointer"
-            >
-              Logout
             </button>
           </div>
         </div>
@@ -135,7 +177,7 @@ function CardTypeView({
                   type="button"
                   id="columns-toggle-btn"
                   onClick={() => setColumnsOpen((o) => !o)}
-                  className={`flex items-center gap-2 rounded-md border px-4 py-2 text-xs font-semibold uppercase tracking-wider transition shadow-xs cursor-pointer ${
+                  className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-xs font-semibold uppercase tracking-wider transition shadow-xs cursor-pointer ${
                     columnsOpen
                       ? 'border-[#1A1817] bg-[#F5CE93] text-[#1A1817]'
                       : 'border-[#E2DDD5] bg-white text-[#59534C] hover:bg-[#F7F5F0]'
@@ -182,7 +224,7 @@ function CardTypeView({
                 type="button"
                 id="add-card-type-btn"
                 onClick={onOpenModal}
-                className="flex items-center gap-2 bg-[#1A1817] hover:bg-[#38332E] px-5 py-2 text-xs font-semibold uppercase tracking-widest text-white transition shadow-xs cursor-pointer"
+                className="flex items-center gap-2 rounded-lg bg-[#1A1817] hover:bg-[#38332E] px-5 py-2 text-xs font-semibold uppercase tracking-widest text-white transition shadow-xs cursor-pointer"
               >
                 <span className="text-sm font-bold leading-none">+</span>
                 ADD CARD TYPE
@@ -198,11 +240,14 @@ function CardTypeView({
                   {visibleCols.slno && (
                     <th className="w-20 px-6 py-3.5">Sl.no</th>
                   )}
+                  {visibleCols.image && (
+                    <th className="w-32 pl-6 pr-10 py-3.5">Image</th>
+                  )}
                   {visibleCols.name && (
-                    <th className="px-6 py-3.5">Card Type Name</th>
+                    <th className="px-6 py-3.5 text-center">Card Type Name</th>
                   )}
                   {visibleCols.status && (
-                    <th className="w-36 px-6 py-3.5">Status</th>
+                    <th className="w-48 px-6 py-3.5">Status</th>
                   )}
                   <th className="w-32 px-6 py-3.5 text-right">Actions</th>
                 </tr>
@@ -218,27 +263,51 @@ function CardTypeView({
                       Loading card types...
                     </td>
                   </tr>
-                ) : filteredItems.length > 0 ? (
-                  filteredItems.map((item, index) => {
+                ) : paginatedItems.length > 0 ? (
+                  paginatedItems.map((item, index) => {
                     const name = item.card_types || item.card_type_name || item.name || '';
+                    const imgPath = item.card_types_images || item.image || item.file_path || '';
                     const status = item.card_types_status || item.status || 'Active';
+                    const fullUrl = getImageUrl(imgPath);
+
                     return (
                       <tr key={item.id} className="hover:bg-[#FAF8F5] transition-colors">
                         {visibleCols.slno && (
-                          <td className="px-6 py-4 font-mono text-[#8C857B]">{index + 1}</td>
+                          <td className="px-6 py-4 font-mono text-[#8C857B]">{startIndex + index + 1}</td>
+                        )}
+                        {visibleCols.image && (
+                          <td className="pl-6 pr-10 py-3">
+                            {fullUrl ? (
+                              <div className="h-12 w-12 rounded-lg border border-[#E2DDD5] bg-[#FAF8F5] overflow-hidden shadow-xs flex items-center justify-center">
+                                <img
+                                  src={fullUrl}
+                                  alt={name}
+                                  referrerPolicy="no-referrer"
+                                  onError={(e) => handleImageError(e, imgPath)}
+                                  className="h-full w-full object-cover cursor-pointer hover:scale-105 transition-transform duration-200"
+                                  onClick={() => setPreviewModalUrl(fullUrl)}
+                                  title="Click to preview"
+                                />
+                              </div>
+                            ) : (
+                              <div className="h-12 w-12 rounded-lg border border-[#E2DDD5] bg-[#FAF8F5] flex flex-col items-center justify-center text-[10px] text-[#A39C93]">
+                                <span>No img</span>
+                              </div>
+                            )}
+                          </td>
                         )}
                         {visibleCols.name && (
-                          <td className="px-6 py-4 font-bold text-[#1A1817]">{name}</td>
+                          <td className="px-6 py-4 font-bold text-[#1A1817] text-center">{name}</td>
                         )}
                         {visibleCols.status && (
                           <td className="px-6 py-4">
                             <button
                               type="button"
                               onClick={() => onToggleStatus && onToggleStatus(item.id, status)}
-                              className={`inline-block border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider cursor-pointer transition ${
+                              className={`inline-block border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-md cursor-pointer transition ${
                                 status === 'Active'
-                                  ? 'border-[#1A1817] text-[#1A1817] bg-white hover:bg-[#F5CE93]'
-                                  : 'border-[#C5C0B6] text-[#8C857B] bg-white hover:bg-[#EFECE6]'
+                                  ? 'border-emerald-500 text-emerald-700 bg-emerald-50 hover:bg-emerald-100'
+                                  : 'border-rose-400 text-rose-700 bg-rose-50 hover:bg-rose-100'
                               }`}
                             >
                               {status}
@@ -274,6 +343,48 @@ function CardTypeView({
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* ── PAGINATION BAR ── */}
+          <div className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between border-t border-[#F0ECE1] bg-[#FAF8F5]">
+            <p className="text-xs text-[#8C857B]">
+              Showing <span className="font-semibold text-[#1A1817]">{displayTotal > 0 ? startNum : 0}</span> to{' '}
+              <span className="font-semibold text-[#1A1817]">{endNum}</span> of{' '}
+              <span className="font-semibold text-[#1A1817]">{displayTotal}</span> card types
+            </p>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => onPageChange && onPageChange(currentPage - 1)}
+                disabled={currentPage <= 1}
+                className="inline-flex items-center gap-1 rounded-lg border border-[#E2DDD5] bg-white px-3.5 py-1.5 text-xs font-semibold text-[#1A1817] shadow-xs hover:bg-[#EFECE6] disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                </svg>
+                Previous
+              </button>
+
+              <div className="flex items-center gap-1 px-3 text-xs font-semibold text-[#59534C]">
+                <span>Page</span>
+                <span className="text-[#1A1817] font-bold">{currentPage}</span>
+                <span>of</span>
+                <span className="text-[#1A1817] font-bold">{calculatedTotalPages}</span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => onPageChange && onPageChange(currentPage + 1)}
+                disabled={currentPage >= calculatedTotalPages}
+                className="inline-flex items-center gap-1 rounded-lg border border-[#E2DDD5] bg-white px-3.5 py-1.5 text-xs font-semibold text-[#1A1817] shadow-xs hover:bg-[#EFECE6] disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
+              >
+                Next
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
       </main>
@@ -312,20 +423,65 @@ function CardTypeView({
               </div>
 
               <div>
-                <label htmlFor="card_types_status" className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-[#8C857B]">
-                  STATUS
+                <label htmlFor="card_types_images" className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-[#8C857B]">
+                  CARD TYPE IMAGE
                 </label>
-                <select
-                  id="card_types_status"
-                  name="card_types_status"
-                  value={form.card_types_status || 'Active'}
-                  onChange={onChange}
-                  className="w-full rounded-md border border-[#E2DDD5] bg-white p-3 text-xs text-[#1A1817] outline-none focus:border-[#1A1817] transition"
-                >
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                </select>
+                {form.card_types_images ? (
+                  <div className="relative mb-2 h-32 w-full rounded-lg overflow-hidden border border-[#E2DDD5] bg-[#FAF8F5]">
+                    <img
+                      src={getImageUrl(form.card_types_images)}
+                      alt="Card Type Preview"
+                      referrerPolicy="no-referrer"
+                      onError={(e) => handleImageError(e, form.card_types_images)}
+                      className="h-full w-full object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => onChange({ target: { name: 'card_types_images', value: '' } })}
+                      className="absolute top-2 right-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-bold text-white hover:bg-red-600 transition cursor-pointer"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : null}
+                <label className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-[#E2DDD5] bg-white p-4 text-center cursor-pointer hover:border-[#1A1817] transition select-none">
+                  <span className="text-xs font-semibold text-[#1A1817]">+ Upload Card Type Image</span>
+                  <span className="text-[10px] text-[#8C857B] mt-0.5">Click to select image file</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onload = (event) => {
+                          onChange({ target: { name: 'card_types_images', value: event.target.result } });
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                  />
+                </label>
               </div>
+
+              {editingId ? (
+                <div>
+                  <label htmlFor="card_types_status" className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-[#8C857B]">
+                    STATUS
+                  </label>
+                  <select
+                    id="card_types_status"
+                    name="card_types_status"
+                    value={form.card_types_status || 'Active'}
+                    onChange={onChange}
+                    className="w-full rounded-md border border-[#E2DDD5] bg-white p-3 text-xs text-[#1A1817] outline-none focus:border-[#1A1817] transition"
+                  >
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
+                </div>
+              ) : null}
 
               <div className="flex items-center gap-3 pt-4">
                 <button
@@ -344,6 +500,34 @@ function CardTypeView({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox Preview Modal */}
+      {previewModalUrl && (
+        <div
+          onClick={() => setPreviewModalUrl(null)}
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-xs p-4 cursor-pointer"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative max-h-[90vh] max-w-[90vw] overflow-hidden rounded-xl border border-white/20 bg-black/60 p-3 shadow-2xl flex flex-col items-center justify-center"
+          >
+            <button
+              type="button"
+              onClick={() => setPreviewModalUrl(null)}
+              className="absolute top-4 right-4 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-black/70 text-white hover:bg-red-600 transition cursor-pointer shadow-md"
+              title="Close Preview"
+            >
+              ✕
+            </button>
+            <img
+              src={previewModalUrl}
+              alt="Card Type Preview"
+              referrerPolicy="no-referrer"
+              className="max-h-[82vh] max-w-[82vw] object-contain rounded-lg shadow-lg"
+            />
           </div>
         </div>
       )}

@@ -1,9 +1,10 @@
-import { NavLink, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../../context/AuthContext';
 
 const navItems = [
   {
-    label: 'Homepage Management',
+    label: 'Dashboard',
     to: '/',
     exact: true,
     icon: (
@@ -12,25 +13,6 @@ const navItems = [
         <rect x="14" y="3" width="7" height="7" rx="1" />
         <rect x="3" y="14" width="7" height="7" rx="1" />
         <rect x="14" y="14" width="7" height="7" rx="1" />
-      </svg>
-    ),
-  },
-  {
-    label: 'Product Catalog',
-    to: '/products',
-    icon: (
-      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-      </svg>
-    ),
-  },
-  {
-    label: 'Categories',
-    to: '/category',
-    icon: (
-      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M12 3L2 12h3v8h6v-6h2v6h6v-8h3L12 3z" />
-        <circle cx="12" cy="7" r="1.5" />
       </svg>
     ),
   },
@@ -47,12 +29,31 @@ const navItems = [
     ),
   },
   {
+    label: 'Categories',
+    to: '/category',
+    icon: (
+      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 3L2 12h3v8h6v-6h2v6h6v-8h3L12 3z" />
+        <circle cx="12" cy="7" r="1.5" />
+      </svg>
+    ),
+  },
+  {
     label: 'Card Types',
     to: '/card-type',
     icon: (
       <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75">
         <rect x="3" y="5" width="18" height="14" rx="2" />
         <line x1="3" y1="10" x2="21" y2="10" />
+      </svg>
+    ),
+  },
+  {
+    label: 'Product Catalog',
+    to: '/products',
+    icon: (
+      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
       </svg>
     ),
   },
@@ -66,21 +67,15 @@ const navItems = [
       </svg>
     ),
   },
-  {
-    label: 'Settings',
-    to: '/profile',
-    icon: (
-      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75">
-        <circle cx="12" cy="12" r="3" />
-        <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" />
-      </svg>
-    ),
-  },
 ];
 
 function Sidebar() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { logout } = useAuthContext();
+
+  const isReportsActive = location.pathname.startsWith('/reports');
+  const [reportsOpen, setReportsOpen] = useState(isReportsActive);
 
   const handleLogout = async () => {
     if (logout) {
@@ -113,10 +108,9 @@ function Sidebar() {
               to={to}
               end={exact}
               className={({ isActive }) =>
-                `flex items-center gap-3.5 px-4 py-3 text-xs font-semibold tracking-wide transition-all duration-200 ${
-                  isActive
-                    ? 'border-l-4 border-[#C99C4B] bg-[#F5CE93] text-[#1A1817] shadow-sm font-bold'
-                    : 'border-l-4 border-transparent text-[#59534C] hover:bg-[#E5E1DA] hover:text-[#1A1817]'
+                `flex items-center gap-3.5 px-4 py-3 text-xs font-semibold tracking-wide transition-all duration-200 ${isActive
+                  ? 'border-l-4 border-[#C99C4B] bg-[#F5CE93] text-[#1A1817] shadow-sm font-bold'
+                  : 'border-l-4 border-transparent text-[#59534C] hover:bg-[#E5E1DA] hover:text-[#1A1817]'
                 }`
               }
             >
@@ -124,6 +118,56 @@ function Sidebar() {
               <span>{label}</span>
             </NavLink>
           ))}
+
+          {/* Reports Collapsible Dropdown */}
+          <div>
+            <button
+              type="button"
+              onClick={() => setReportsOpen((prev) => !prev)}
+              className={`w-full flex items-center justify-between px-4 py-3 text-xs font-semibold tracking-wide transition-all duration-200 cursor-pointer ${
+                isReportsActive
+                  ? 'border-l-4 border-[#C99C4B] bg-[#F5CE93] text-[#1A1817] shadow-sm font-bold'
+                  : 'border-l-4 border-transparent text-[#59534C] hover:bg-[#E5E1DA] hover:text-[#1A1817]'
+              }`}
+            >
+              <div className="flex items-center gap-3.5">
+                <svg className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <span>Reports</span>
+              </div>
+              <svg
+                className={`h-4 w-4 transition-transform duration-200 ${reportsOpen ? 'rotate-180' : ''}`}
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            {reportsOpen && (
+              <div className="ml-5 mt-1 space-y-1 border-l-2 border-[#C99C4B]/40 pl-3">
+                <NavLink
+                  to="/reports/enquiry"
+                  className={({ isActive }) =>
+                    `flex items-center gap-2.5 px-3 py-2 text-xs font-medium rounded-md transition-all duration-200 ${
+                      isActive
+                        ? 'bg-[#1A1817] text-white font-bold shadow-xs'
+                        : 'text-[#59534C] hover:bg-[#E5E1DA] hover:text-[#1A1817]'
+                    }`
+                  }
+                >
+                  <svg className="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75">
+                    <rect x="3" y="4" width="18" height="16" rx="2" />
+                    <path d="M3 6l9 6 9-6" />
+                  </svg>
+                  <span>Enquiry Reports</span>
+                </NavLink>
+              </div>
+            )}
+          </div>
         </nav>
       </div>
 

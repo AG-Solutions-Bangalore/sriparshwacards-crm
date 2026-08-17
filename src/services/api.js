@@ -148,13 +148,22 @@ export const fetchProfile = async () => {
  * PUT — update profile fields (mobile, email) via FormData.
  */
 export const updateProfile = async ({ mobile, email }) => {
-  const formData = new FormData();
-  if (mobile !== undefined) formData.append('mobile', mobile);
-  if (email  !== undefined) formData.append('email',  email);
+  try {
+    const response = await api.put('/panel-update-profile', {
+      mobile: String(mobile || '').trim(),
+      email: String(email || '').trim(),
+    });
+    return response.data;
+  } catch (jsonErr) {
+    const formData = new FormData();
+    formData.append('mobile', String(mobile || '').trim());
+    formData.append('email', String(email || '').trim());
+    formData.append('_method', 'PUT');
 
-  const response = await api.put('/panel-update-profile', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
-  return response.data;
+    const response = await api.post('/panel-update-profile', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  }
 };
 

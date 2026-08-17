@@ -18,7 +18,7 @@ import {
 /** Safely extract array of items from response shape */
 function extractList(response) {
   if (Array.isArray(response)) return response;
-  if (Array.isArray(response?.data)) return response.data;
+  if (Array.isArray(response?.data)) return response.data;  
   if (Array.isArray(response?.data?.data)) return response.data.data;
   if (Array.isArray(response?.card_types)) return response.card_types;
   if (Array.isArray(response?.cardtype)) return response.cardtype;
@@ -47,23 +47,37 @@ function CardTypePage() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [form, setForm] = useState({ card_types: '', card_types_status: 'Active' });
+  const emptyForm = { card_types: '', card_types_images: '' };
+  const [form, setForm] = useState(emptyForm);
   const [editingItem, setEditingItem] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+
   /* ───────────── FETCH DATA ───────────── */
-  const fetchData = async () => {
+  const fetchData = async (page = 1) => {
     setLoading(true);
     try {
       const [listResponse] = await Promise.all([
-        getCardTypes(),
+        getCardTypes(page),
         getActiveCardTypes().catch(() => []),
         getActivePlacements().catch(() => []),
       ]);
 
-      console.log('[CardTypePage] GET /cardtype response:', listResponse);
+      console.log(`[CardTypePage] GET /cardtype?page=${page} response:`, listResponse);
       const listData = extractList(listResponse);
       setItems(listData);
+
+      const lastPage = listResponse?.last_page || listResponse?.data?.last_page || listResponse?.meta?.last_page;
+      const total = listResponse?.total || listResponse?.data?.total || listResponse?.meta?.total;
+
+      if (lastPage) setTotalPages(lastPage);
+      else setTotalPages(Math.max(1, Math.ceil((total || listData.length) / 10)));
+
+      if (total !== undefined && total !== null) setTotalCount(total);
+      else setTotalCount(listData.length);
     } catch (err) {
       const msg = extractErrorMessage(err);
       toast.error(msg);
@@ -73,8 +87,14 @@ function CardTypePage() {
   };
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    fetchData(currentPage);
+  }, [currentPage]);
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= totalPages && newPage !== currentPage) {
+      setCurrentPage(newPage);
+    }
+  };
 
   /* ───────────── FORM HANDLERS ───────────── */
   const handleChange = (event) => {
@@ -92,8 +112,12 @@ function CardTypePage() {
 
       const payload = {
         card_types: name,
-        card_types_status: form.card_types_status || 'Active',
+        card_types_images: form.card_types_images || '',
       };
+      if (editingItem && form.card_types_status) {
+        payload.card_types_status = form.card_types_status;
+        payload.status = form.card_types_status;
+      }
 
       let response;
       if (editingItem) {
@@ -104,7 +128,7 @@ function CardTypePage() {
         toast.success(response?.message || 'Card type created successfully.');
       }
 
-      setForm({ card_types: '', card_types_status: 'Active' });
+      setForm(emptyForm);
       setEditingItem(null);
       setIsModalOpen(false);
       await fetchData();
@@ -125,6 +149,7 @@ function CardTypePage() {
       setEditingItem(item);
       setForm({
         card_types: item?.card_types || item?.card_type_name || item?.name || '',
+        card_types_images: item?.card_types_images || item?.image || item?.file_path || '',
         card_types_status: item?.card_types_status || item?.status || 'Active',
       });
       setIsModalOpen(true);
@@ -136,14 +161,14 @@ function CardTypePage() {
   /* ───────────── MODAL HANDLERS ───────────── */
   const handleOpenCreateModal = () => {
     setEditingItem(null);
-    setForm({ card_types: '', card_types_status: 'Active' });
+    setForm(emptyForm);
     setIsModalOpen(true);
   };
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setEditingItem(null);
-    setForm({ card_types: '', card_types_status: 'Active' });
+    setForm(emptyForm);
   };
 
   /* ───────────── DELETE ───────────── */
@@ -165,11 +190,24 @@ function CardTypePage() {
   /* ───────────── TOGGLE STATUS ───────────── */
   const handleToggleStatus = async (id, currentStatus) => {
     const nextStatus = currentStatus === 'Active' ? 'Inactive' : 'Active';
+    setItems((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? { ...item, card_types_status: nextStatus, status: nextStatus }
+          : item
+      )
+    );
     try {
       const response = await updateCardTypeStatus(id, nextStatus);
       toast.success(response?.message || `Status changed to ${nextStatus}.`);
-      await fetchData();
     } catch (err) {
+      setItems((prev) =>
+        prev.map((item) =>
+          item.id === id
+            ? { ...item, card_types_status: currentStatus, status: currentStatus }
+            : item
+        )
+      );
       toast.error(extractErrorMessage(err));
     }
   };
@@ -197,6 +235,10 @@ function CardTypePage() {
       onOpenModal={handleOpenCreateModal}
       onCloseModal={handleCloseModal}
       submitting={submitting}
+      currentPage={currentPage}
+      onPageChange={handlePageChange}
+      totalPages={totalPages}
+      totalCount={totalCount}
     />
   );
 }
