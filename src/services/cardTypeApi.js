@@ -34,6 +34,9 @@ export const createCardType = async (payload) => {
     const formData = new FormData();
     formData.append('card_types', payload.card_types || '');
     formData.append('card_types_images', payload.card_types_images);
+    if (payload.card_types_status) {
+      formData.append('card_types_status', payload.card_types_status);
+    }
     const response = await api.post('/cardtype', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
@@ -48,6 +51,9 @@ export const updateCardType = async (id, payload) => {
     const formData = new FormData();
     formData.append('card_types', payload.card_types || '');
     formData.append('card_types_images', payload.card_types_images);
+    if (payload.card_types_status) {
+      formData.append('card_types_status', payload.card_types_status);
+    }
     formData.append('_method', 'PUT');
     const response = await api.post(`/cardtype/${id}`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },

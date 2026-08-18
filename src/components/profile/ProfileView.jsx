@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import Sidebar from '../dashboard/Sidebar';
+import { useAppContext } from '../../context/AppContext';
 
 function ProfileView({
   profile,
@@ -13,12 +14,13 @@ function ProfileView({
   onSubmit,
   onPassSubmit,
 }) {
+  const { companyInfo, companyLogoUrl } = useAppContext();
   const [showOldPass, setShowOldPass] = useState(false);
   const [showNewPass, setShowNewPass] = useState(false);
   const [showConfirmPass, setShowConfirmPass] = useState(false);
 
   return (
-    <div className="flex min-h-screen bg-[#F7F5F0] text-[#1A1817] font-sans">
+    <div className="flex h-screen overflow-hidden bg-[#F7F5F0] text-[#1A1817] font-sans">
       {/* SIDEBAR */}
       <Sidebar />
 
@@ -94,6 +96,35 @@ function ProfileView({
                   </div>
                 </div>
               </div>
+
+              {/* Company Details Card */}
+              {companyInfo && (
+                <div className="mt-6 rounded-xl border border-[#E8E3DA] bg-[#FAF8F5] p-5 text-left space-y-3">
+                  <div className="flex items-center gap-3 border-b border-[#E2DDD5] pb-3">
+                    {companyLogoUrl && (
+                      <img src={companyLogoUrl} alt="Logo" className="h-7 w-auto object-contain" />
+                    )}
+                    <div>
+                      <h3 className="font-serif text-sm font-bold text-[#1A1817]">{companyInfo.company_name}</h3>
+                      <p className="text-[10px] text-[#8C857B]">{companyInfo.company_email}</p>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-[9.5px] font-bold uppercase tracking-wider text-[#8C857B]">Address</span>
+                    <p className="mt-0.5 text-[11px] text-[#1A1817] leading-relaxed">{companyInfo.company_address}</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-[11px]">
+                    <div>
+                      <span className="text-[9.5px] font-bold uppercase tracking-wider text-[#8C857B]">Mobile</span>
+                      <p className="mt-0.5 font-mono text-[#1A1817]">{companyInfo.company_mobile_no}</p>
+                    </div>
+                    <div>
+                      <span className="text-[9.5px] font-bold uppercase tracking-wider text-[#8C857B]">WhatsApp</span>
+                      <p className="mt-0.5 font-mono text-[#1A1817]">{companyInfo.company_whatsapp_no}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Right Column: Edit Profile + Change Password */}

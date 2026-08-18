@@ -74,3 +74,16 @@ textarea {
   background: #C4BBB0;
 }
 
+/* Global Input & Textarea Placeholder Styling */
+input::placeholder,
+textarea::placeholder,
+select::placeholder {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 0.75rem !important; /* 12px */
+  font-style: italic !important;
+  font-weight: 400 !important;
+  color: #9E978C !important;
+  opacity: 0.85 !important;
+}
+
+

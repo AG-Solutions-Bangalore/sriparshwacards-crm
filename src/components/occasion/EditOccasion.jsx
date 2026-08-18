@@ -75,7 +75,7 @@ function EditOccasion({
           <button
             type="submit"
             disabled={loading}
-            className="rounded-xl bg-stone-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-stone-700 disabled:cursor-not-allowed disabled:bg-stone-400"
+            className="rounded-xl bg-stone-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-stone-700 disabled:cursor-not-allowed disabled:bg-stone-400 cursor-pointer"
           >
             {loading ? 'Saving...' : 'Save'}
           </button>
@@ -83,7 +83,7 @@ function EditOccasion({
           <button
             type="button"
             onClick={() => onDelete(item.id)}
-            className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-medium text-red-700 transition hover:bg-red-100"
+            className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-medium text-red-700 transition hover:bg-red-100 cursor-pointer"
           >
             Delete
           </button>
@@ -91,7 +91,7 @@ function EditOccasion({
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-sm font-medium text-stone-700 transition hover:bg-stone-100"
+            className="rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-sm font-medium text-stone-700 transition hover:bg-stone-100 cursor-pointer"
           >
             Cancel
           </button>

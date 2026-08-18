@@ -115,6 +115,7 @@ function CardTypePage() {
     try {
       const name = form.card_types?.trim();
       if (!name) throw new Error('Card type name is required.');
+      if (!form.card_types_images) throw new Error('Card type image is required.');
 
       const payload = {
         card_types: name,
@@ -179,7 +180,6 @@ function CardTypePage() {
 
   /* ───────────── DELETE ───────────── */
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this card type?')) return;
     setSubmitting(true);
     try {
       const response = await deleteCardType(id);

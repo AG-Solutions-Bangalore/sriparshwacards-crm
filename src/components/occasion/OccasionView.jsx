@@ -79,7 +79,7 @@ function OccasionView({
   };
 
   return (
-    <div className="flex min-h-screen bg-[#F7F5F0] text-[#1A1817] font-sans">
+    <div className="flex h-screen overflow-hidden bg-[#F7F5F0] text-[#1A1817] font-sans">
       {/* SIDEBAR */}
       <Sidebar />
 
@@ -354,7 +354,8 @@ function OccasionView({
             <button
               type="button"
               onClick={onCloseModal}
-              className="absolute right-4 top-4 text-[#8C857B] hover:text-[#1A1817] transition"
+              className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full text-[#8C857B] hover:text-[#1A1817] hover:bg-[#EFECE6] transition cursor-pointer"
+              title="Close modal"
             >
               ✕
             </button>

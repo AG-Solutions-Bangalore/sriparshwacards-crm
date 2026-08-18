@@ -79,10 +79,14 @@ export const buildProductFormData = (payload) => {
       if (rawFile instanceof File || rawFile instanceof Blob) {
         formData.append(`images[${i}][product_images]`, rawFile);
       } else if (typeof imgVal === 'string' && imgVal.startsWith('data:')) {
-        const fileObj = dataURLtoFile(imgVal, `product_image_${i + 1}.jpg`);
+        const fileObj = dataURLtoFile(imgVal, `product_image_${i + 1}.webp`);
         if (fileObj instanceof File || fileObj instanceof Blob) {
           formData.append(`images[${i}][product_images]`, fileObj);
+        } else {
+          formData.append(`images[${i}][product_images]`, imgVal);
         }
+      } else if (typeof imgVal === 'string' && imgVal.trim()) {
+        formData.append(`images[${i}][product_images]`, imgVal);
       }
     });
   }
@@ -119,30 +123,20 @@ export const getProductById = async (id) => {
 
 export const createProduct = async (payload) => {
   const formData = buildProductFormData(payload);
-  try {
-    const response = await api.post('/products', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
-    return response.data;
-  } catch (err) {
-    const response = await api.post('/products', payload);
-    return response.data;
-  }
+  const response = await api.post('/products', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return response.data;
 };
 
 export const updateProduct = async (id, payload) => {
   const formData = buildProductFormData(payload);
   formData.append('_method', 'PUT');
 
-  try {
-    const response = await api.post(`/products/${id}`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
-    return response.data;
-  } catch (err) {
-    const response = await api.put(`/products/${id}`, payload);
-    return response.data;
-  }
+  const response = await api.post(`/products/${id}`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return response.data;
 };
 
 export const updateProductStatus = async (id, product_status) => {

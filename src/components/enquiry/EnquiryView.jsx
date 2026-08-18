@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Sidebar from '../dashboard/Sidebar';
 import LogoutConfirmModal from '../common/LogoutConfirmModal';
+import DeleteConfirmModal from '../common/DeleteConfirmModal';
 
 function formatDateDDMMYYYY(dateStr) {
   if (!dateStr) return 'N/A';
@@ -20,12 +21,12 @@ function formatDateDDMMYYYY(dateStr) {
 
 const TOGGLEABLE_COLUMNS = [
   { key: 'slno', label: 'Sl.no' },
+  { key: 'createdDate', label: 'Enquiry Date' },
   { key: 'name', label: 'Customer Name' },
   { key: 'mobile', label: 'Mobile' },
   { key: 'email', label: 'Email' },
   { key: 'occasion', label: 'Occasion' },
   { key: 'weddingDate', label: 'Wedding Date' },
-  { key: 'createdDate', label: 'Enquiry Date' },
   { key: 'message', label: 'Message' },
   { key: 'status', label: 'Status' },
 ];
@@ -48,15 +49,25 @@ function EnquiryView({
   const [columnsOpen, setColumnsOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [fromDateInput, setFromDateInput] = useState('');
+  const [toDateInput, setToDateInput] = useState('');
+  const [appliedFromDate, setAppliedFromDate] = useState('');
+  const [appliedToDate, setAppliedToDate] = useState('');
+  const [confirmDeleteModal, setConfirmDeleteModal] = useState({
+    isOpen: false,
+    id: null,
+    title: '',
+    message: '',
+  });
 
   const [visibleCols, setVisibleCols] = useState({
     slno: true,
+    createdDate: true,
     name: true,
     mobile: true,
     email: true,
     occasion: true,
     weddingDate: true,
-    createdDate: true,
     message: true,
     status: true,
   });
@@ -81,7 +92,31 @@ function EnquiryView({
     const email = item.enquiryEmail || item.email || '';
     const msg = item.enquiryMessage || item.message || '';
     const weddingDate = item.enquiryWeddingDate || item.wedding_date || item.weddingDate || '';
-    const createdDate = item.enquiryCreatedDate || item.created_at || item.createdDate || '';
+    const createdDateRaw =
+      item.enquiryCreatedDate ||
+      item.enquiry_created_date ||
+      item.created_at ||
+      item.createdAt ||
+      item.createdDate ||
+      item.date ||
+      '';
+
+    if (appliedFromDate || appliedToDate) {
+      let itemYMD = '';
+      if (/^\d{4}-\d{2}-\d{2}/.test(String(createdDateRaw))) {
+        itemYMD = String(createdDateRaw).substring(0, 10);
+      } else {
+        const match = String(createdDateRaw).match(/^(\d{2})-(\d{2})-(\d{4})/);
+        if (match) {
+          itemYMD = `${match[3]}-${match[2]}-${match[1]}`;
+        }
+      }
+      if (itemYMD) {
+        if (appliedFromDate && itemYMD < appliedFromDate) return false;
+        if (appliedToDate && itemYMD > appliedToDate) return false;
+      }
+    }
+
     const q = searchQuery.toLowerCase();
     return (
       name.toLowerCase().includes(q) ||
@@ -89,7 +124,7 @@ function EnquiryView({
       email.toLowerCase().includes(q) ||
       msg.toLowerCase().includes(q) ||
       weddingDate.toLowerCase().includes(q) ||
-      createdDate.toLowerCase().includes(q)
+      createdDateRaw.toLowerCase().includes(q)
     );
   });
 
@@ -115,7 +150,7 @@ function EnquiryView({
   };
 
   return (
-    <div className="flex min-h-screen bg-[#F7F5F0] text-[#1A1817] font-sans">
+    <div className="flex h-screen overflow-hidden bg-[#F7F5F0] text-[#1A1817] font-sans">
       <Sidebar />
 
       <main className="flex-1 p-8 overflow-y-auto">
@@ -187,7 +222,71 @@ function EnquiryView({
               />
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Unique Date Filter with Explicit Filter Button */}
+              <div className="flex items-center gap-1.5 rounded-full border border-[#E2DDD5] bg-[#FAF8F5] px-3.5 py-1 text-xs shadow-2xs hover:border-[#C99C4B] transition">
+                <svg className="h-4 w-4 text-[#8C857B] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <input
+                  type="date"
+                  value={fromDateInput}
+                  onChange={(e) => setFromDateInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      setAppliedFromDate(fromDateInput);
+                      setAppliedToDate(toDateInput);
+                    }
+                  }}
+                  className="w-[112px] bg-transparent text-xs font-mono text-[#1A1817] outline-none cursor-pointer tracking-tighter"
+                  title="Filter From Date"
+                />
+                <span className="text-[11px] text-[#8C857B] font-serif italic px-1">to</span>
+                <input
+                  type="date"
+                  value={toDateInput}
+                  onChange={(e) => setToDateInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      setAppliedFromDate(fromDateInput);
+                      setAppliedToDate(toDateInput);
+                    }
+                  }}
+                  className="w-[112px] bg-transparent text-xs font-mono text-[#1A1817] outline-none cursor-pointer tracking-tighter"
+                  title="Filter To Date"
+                />
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAppliedFromDate(fromDateInput);
+                    setAppliedToDate(toDateInput);
+                  }}
+                  className="rounded-full bg-[#1A1817] hover:bg-[#38332E] px-3 py-0.5 text-[10px] font-semibold tracking-wide text-white transition shadow-2xs cursor-pointer ml-1"
+                  title="Apply Date Filter"
+                >
+                  Filter
+                </button>
+
+                {(fromDateInput || toDateInput || appliedFromDate || appliedToDate) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFromDateInput('');
+                      setToDateInput('');
+                      setAppliedFromDate('');
+                      setAppliedToDate('');
+                    }}
+                    className="ml-0.5 rounded-full p-0.5 text-[#8C857B] hover:text-red-600 hover:bg-red-50 transition cursor-pointer"
+                    title="Clear Date Filter"
+                  >
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+
               <div className="relative" ref={dropdownRef}>
                 <button
                   type="button"
@@ -236,12 +335,12 @@ function EnquiryView({
               <thead className="border-b border-[#E2DDD5] bg-[#EFECE6]">
                 <tr className="text-[10px] font-semibold uppercase tracking-wider text-[#59534C]">
                   {visibleCols.slno && <th className="w-16 px-6 py-2.5">Sl.no</th>}
+                  {visibleCols.createdDate && <th className="px-6 py-2.5">Enquiry Date</th>}
                   {visibleCols.name && <th className="px-6 py-2.5">Customer</th>}
                   {visibleCols.mobile && <th className="px-6 py-2.5">Mobile</th>}
                   {visibleCols.email && <th className="px-6 py-2.5">Email</th>}
                   {visibleCols.occasion && <th className="px-6 py-2.5">Occasion</th>}
                   {visibleCols.weddingDate && <th className="px-6 py-2.5">Wedding Date</th>}
-                  {visibleCols.createdDate && <th className="px-6 py-2.5">Enquiry Date</th>}
                   {visibleCols.message && <th className="px-6 py-2.5">Message</th>}
                   {visibleCols.status && <th className="w-36 px-6 py-2.5">Status</th>}
                   <th className="w-24 px-6 py-2.5 text-right">Actions</th>
@@ -318,6 +417,11 @@ function EnquiryView({
                     return (
                       <tr key={item.id || index} className="hover:bg-[#FAF8F5] transition-colors">
                         {visibleCols.slno && <td className="px-6 py-4 font-mono text-[#8C857B] text-xs">{startIndex + index + 1}</td>}
+                        {visibleCols.createdDate && (
+                          <td className="px-6 py-4 text-[#59534C] font-mono text-xs whitespace-nowrap">
+                            {createdDateFormatted}
+                          </td>
+                        )}
                         {visibleCols.name && <td className="px-6 py-4 font-bold text-[#1A1817] text-xs">{name}</td>}
                         {visibleCols.mobile && <td className="px-6 py-4 text-[#59534C] font-mono text-xs">{mobile}</td>}
                         {visibleCols.email && <td className="px-6 py-4 text-[#59534C] text-xs">{email}</td>}
@@ -325,11 +429,6 @@ function EnquiryView({
                         {visibleCols.weddingDate && (
                           <td className="px-6 py-4 text-[#59534C] font-mono text-xs whitespace-nowrap">
                             {weddingDateFormatted}
-                          </td>
-                        )}
-                        {visibleCols.createdDate && (
-                          <td className="px-6 py-4 text-[#59534C] font-mono text-xs whitespace-nowrap">
-                            {createdDateFormatted}
                           </td>
                         )}
                         {visibleCols.message && (
@@ -366,7 +465,14 @@ function EnquiryView({
                           {onDelete && (
                             <button
                               type="button"
-                              onClick={() => onDelete(item.id)}
+                              onClick={() => {
+                                setConfirmDeleteModal({
+                                  isOpen: true,
+                                  id: item.id,
+                                  title: 'Delete Enquiry',
+                                  message: `Do you really want to delete enquiry from "${name || 'this customer'}"? This action cannot be undone.`,
+                                });
+                              }}
                               className="p-1.5 text-[#8C857B] hover:text-red-600 transition cursor-pointer"
                               title="Delete Enquiry"
                             >
@@ -440,6 +546,19 @@ function EnquiryView({
         onClose={() => setShowLogoutConfirm(false)}
         onConfirm={handleConfirmLogout}
         submitting={loggingOut}
+      />
+
+      <DeleteConfirmModal
+        isOpen={confirmDeleteModal.isOpen}
+        onClose={() => setConfirmDeleteModal({ isOpen: false, id: null })}
+        onConfirm={async () => {
+          if (onDelete && confirmDeleteModal.id) {
+            await onDelete(confirmDeleteModal.id);
+          }
+          setConfirmDeleteModal({ isOpen: false, id: null });
+        }}
+        title={confirmDeleteModal.title}
+        message={confirmDeleteModal.message}
       />
     </div>
   );
