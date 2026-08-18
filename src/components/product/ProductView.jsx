@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
+import toast from 'react-hot-toast';
 
 import { api } from '../../services/api';
 import Sidebar from '../dashboard/Sidebar';
 import LogoutConfirmModal from '../common/LogoutConfirmModal';
+import DeleteConfirmModal from '../common/DeleteConfirmModal';
 
 /* Toggleable Columns */
 const TOGGLEABLE_COLUMNS = [
@@ -12,7 +14,7 @@ const TOGGLEABLE_COLUMNS = [
   { key: 'made_of', label: 'Made Of' },
   { key: 'occasions', label: 'Occasions' },
   { key: 'categories', label: 'Categories' },
-  // { key: 'card_types', label: 'Card Types' },
+  { key: 'card_types', label: 'Card Types' },
   { key: 'status', label: 'Status' },
 ];
 
@@ -121,8 +123,8 @@ function renderChips(names, variant = 'stone') {
 }
 
 function getImageUrl(path) {
-  if (!path) return '';
-  if (typeof path !== 'string') return '';
+  if (!path) return 'https://sriparshwacards.in/crmapi/public/assets/images/no_image.jpg';
+  if (typeof path !== 'string') return 'https://sriparshwacards.in/crmapi/public/assets/images/no_image.jpg';
   if (path.startsWith('data:') || path.startsWith('blob:')) {
     return path;
   }
@@ -147,7 +149,10 @@ function getImageUrl(path) {
 }
 
 function handleImageError(e, originalPath) {
-  if (!originalPath || typeof originalPath !== 'string') return;
+  if (!originalPath || typeof originalPath !== 'string') {
+    e.target.src = 'https://sriparshwacards.in/crmapi/public/assets/images/no_image.jpg';
+    return;
+  }
   if (originalPath.startsWith('data:') || originalPath.startsWith('blob:')) return;
 
   const siteUrl = 'https://sriparshwacards.in/crmapi/public';
@@ -162,6 +167,7 @@ function handleImageError(e, originalPath) {
     `${siteUrl}/products/${clean}`,
     `${siteUrl}/uploads/products/${clean}`,
     `${siteUrl}/${clean}`,
+    `https://sriparshwacards.in/crmapi/public/assets/images/no_image.jpg`,
   ];
 
   if (triedCount < candidates.length) {
@@ -170,6 +176,8 @@ function handleImageError(e, originalPath) {
     if (nextUrl && nextUrl !== e.target.src) {
       e.target.src = nextUrl;
     }
+  } else {
+    e.target.src = 'https://sriparshwacards.in/crmapi/public/assets/images/no_image.jpg';
   }
 }
 
@@ -291,6 +299,81 @@ function MultiSelectDropdown({ label, itemsList = [], nameKey = 'name', selected
   );
 }
 
+function ProductImageCarousel({ item, getImageUrl, handleImageError, openPreview }) {
+  const [activeIdx, setActiveIdx] = useState(0);
+
+  const rawImgs = item?.images || item?.product_images || item?.gallery || item?.image_url || [];
+  const imgList = (Array.isArray(rawImgs) ? rawImgs : [rawImgs])
+    .map((img) => {
+      if (typeof img === 'string') return img;
+      return (
+        img?.product_images ||
+        img?.image_url ||
+        img?.image ||
+        img?.url ||
+        img?.file_path ||
+        img?.path ||
+        ''
+      );
+    })
+    .filter((path) => {
+      if (!path) return false;
+      const str = String(path).toLowerCase();
+      return !str.includes('no_image.jpg');
+    });
+
+  const displayList = imgList.length > 0 ? imgList : [item?.image || ''];
+
+  useEffect(() => {
+    if (displayList.length <= 1) return;
+
+    const timer = setInterval(() => {
+      setActiveIdx((prev) => (prev + 1) % displayList.length);
+    }, 2500);
+
+    return () => clearInterval(timer);
+  }, [displayList.length]);
+
+  return (
+    <div className="relative h-12 w-12 rounded-lg border border-[#E2DDD5] bg-[#FAF8F5] overflow-hidden shadow-xs flex items-center justify-center">
+      <div
+        className="flex h-full w-full transition-transform duration-700 ease-in-out"
+        style={{ transform: `translateX(-${activeIdx * 100}%)` }}
+      >
+        {displayList.map((path, idx) => {
+          const fullUrl = getImageUrl(path);
+          return (
+            <div key={idx} className="h-full w-full shrink-0">
+              <img
+                src={fullUrl}
+                alt={item.product_name || 'Product'}
+                referrerPolicy="no-referrer"
+                onError={(e) => handleImageError(e, path)}
+                className="h-full w-full object-cover cursor-pointer"
+                onClick={() => openPreview(displayList, idx)}
+                title={`Click to preview full-size image (${idx + 1}/${displayList.length})`}
+              />
+            </div>
+          );
+        })}
+      </div>
+
+      {displayList.length > 1 && (
+        <div className="absolute bottom-1 inset-x-0 flex justify-center gap-0.5 pointer-events-none z-10">
+          {displayList.map((_, dotIdx) => (
+            <span
+              key={dotIdx}
+              className={`h-1 rounded-full transition-all duration-300 ${
+                dotIdx === activeIdx ? 'bg-white shadow-xs w-2.5' : 'bg-black/40 w-1'
+              }`}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ProductView({
   form,
   onChange,
@@ -328,6 +411,12 @@ function ProductView({
   const [columnsOpen, setColumnsOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [confirmDeleteModal, setConfirmDeleteModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: null,
+  });
 
   const handleConfirmLogout = async () => {
     setLoggingOut(true);
@@ -348,7 +437,21 @@ function ProductView({
   const [selectedTiers, setSelectedTiers] = useState([]);
   const [selectedTraditions, setSelectedTraditions] = useState([]);
   const [selectedStyles, setSelectedStyles] = useState([]);
-  const [previewModalUrl, setPreviewModalUrl] = useState(null);
+  const [previewModalData, setPreviewModalData] = useState(null);
+
+  const openPreview = (urls, activeIndex = 0) => {
+    let list = [];
+    if (Array.isArray(urls)) {
+      list = urls.map((u) => getImageUrl(u)).filter(Boolean);
+    } else if (typeof urls === 'string' && urls) {
+      list = [getImageUrl(urls)];
+    }
+    if (list.length === 0) return;
+    setPreviewModalData({
+      images: list,
+      activeIndex: Math.min(activeIndex, list.length - 1),
+    });
+  };
 
   useEffect(() => {
     if (isModalOpen && !editingId) {
@@ -363,6 +466,25 @@ function ProductView({
       setList(currentList.filter((i) => i !== item));
     } else {
       setList([...currentList, item]);
+    }
+  };
+
+  const handleFormSubmit = (e) => {
+    e.preventDefault();
+    if (!form.occasions_ids || !form.occasions_ids.trim()) {
+      toast.error('Please select at least one Occasion.');
+      return;
+    }
+    if (!form.categories_ids || !form.categories_ids.trim()) {
+      toast.error('Please select at least one Category.');
+      return;
+    }
+    if (!form.card_types_ids || !form.card_types_ids.trim()) {
+      toast.error('Please select at least one Card Type.');
+      return;
+    }
+    if (onSubmit) {
+      onSubmit(e);
     }
   };
 
@@ -489,7 +611,7 @@ function ProductView({
   const endNum = isServerPaginated ? Math.min(currentPage * itemsPerPage, displayTotal) : Math.min(startIndex + itemsPerPage, filteredItems.length);
 
   return (
-    <div className="flex min-h-screen bg-[#F7F5F0] text-[#1A1817] font-sans">
+    <div className="flex h-screen overflow-hidden bg-[#F7F5F0] text-[#1A1817] font-sans">
       <Sidebar />
 
       <main className="flex-1 p-8 overflow-y-auto">
@@ -624,9 +746,9 @@ function ProductView({
                   {visibleCols.image && <th className="w-20 px-6 py-2.5">Image</th>}
                   {visibleCols.name && <th className="px-6 py-2.5">Product Name</th>}
                   {visibleCols.made_of && <th className="px-6 py-2.5">Made Of</th>}
-                  {visibleCols.occasions && <th className="px-6 py-2.5">Occasion IDs</th>}
-                  {visibleCols.categories && <th className="px-6 py-2.5">Category IDs</th>}
-                  {/* {visibleCols.card_types && <th className="px-6 py-3.5">Card Type IDs</th>} */}
+                  {visibleCols.occasions && <th className="px-6 py-2.5">Occasion</th>}
+                  {visibleCols.categories && <th className="px-6 py-2.5">Category</th>}
+                  {visibleCols.card_types && <th className="px-6 py-2.5">Card Type</th>}
                   {visibleCols.status && <th className="w-32 px-6 py-3.5">Status</th>}
                   <th className="w-28 px-6 py-3.5 text-right">Actions</th>
                 </tr>
@@ -654,23 +776,12 @@ function ProductView({
                         {visibleCols.slno && <td className="px-6 py-4 font-mono text-[#8C857B]">{startIndex + index + 1}</td>}
                         {visibleCols.image && (
                           <td className="px-6 py-3">
-                            {fullUrl ? (
-                              <div className="h-12 w-12 rounded-lg border border-[#E2DDD5] bg-[#FAF8F5] overflow-hidden shadow-xs flex items-center justify-center">
-                                <img
-                                  src={fullUrl}
-                                  alt={item.product_name || 'Product'}
-                                  referrerPolicy="no-referrer"
-                                  onError={(e) => handleImageError(e, imgPath)}
-                                  className="h-full w-full object-cover cursor-pointer hover:scale-105 transition-transform duration-200"
-                                  onClick={() => setPreviewModalUrl(fullUrl)}
-                                  title="Click to preview full-size image"
-                                />
-                              </div>
-                            ) : (
-                              <div className="h-12 w-12 rounded-lg border border-[#E2DDD5] bg-[#FAF8F5] flex flex-col items-center justify-center text-[10px] text-[#A39C93]">
-                                <span>No img</span>
-                              </div>
-                            )}
+                            <ProductImageCarousel
+                              item={item}
+                              getImageUrl={getImageUrl}
+                              handleImageError={handleImageError}
+                              openPreview={openPreview}
+                            />
                           </td>
                         )}
                         {visibleCols.name && (
@@ -689,11 +800,11 @@ function ProductView({
                             {renderChips(getNameArrayFromIds(item.categories_ids || item.categories, categoriesList, 'categories'), 'stone')}
                           </td>
                         )}
-                        {/* {visibleCols.card_types && (
+                        {visibleCols.card_types && (
                           <td className="px-6 py-4">
                             {renderChips(getNameArrayFromIds(item.card_types_ids || item.card_types, cardTypesList, 'card_types'), 'bronze')}
                           </td>
-                        )} */}
+                        )}
                         {visibleCols.status && (
                           <td className="px-6 py-4">
                             <button
@@ -819,7 +930,7 @@ function ProductView({
               </div>
             </div>
 
-            <form onSubmit={onSubmit} className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <form onSubmit={handleFormSubmit} className="grid grid-cols-1 gap-6 lg:grid-cols-3">
               {/* ── LEFT COLUMN (2 Cols): Product Details & Media Gallery ── */}
               <div className="lg:col-span-2 space-y-6">
                 {/* 1. Product Details Card */}
@@ -867,23 +978,46 @@ function ProductView({
                 <div className="rounded-xl border border-[#E8E3DA] bg-white p-6 shadow-xs">
                   <div className="mb-6 flex items-baseline justify-between">
                     <h3 className="font-serif text-2xl font-normal text-[#1A1817]">Media Gallery</h3>
-                    <span className="text-xs text-[#8C857B]">Upload high-res images (JPG, PNG)</span>
+                    <span className="text-xs text-[#8C857B]">Upload high-res images (WebP format)</span>
                   </div>
 
                   {/* Primary Image dropzone + Guidelines Grid */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                     {/* Primary Image Preview or Dropzone */}
                     {form.images?.[0]?.product_images ? (
-                      <div className="md:col-span-2 relative h-48 w-full rounded-lg overflow-hidden border border-[#E2DDD5] bg-black/5">
+                      <div className="md:col-span-2 relative h-48 w-full rounded-lg overflow-hidden border border-[#E2DDD5] bg-black/5 group">
                         <img
                           src={getImageUrl(form.images[0].product_images)}
                           alt="Primary Product"
                           referrerPolicy="no-referrer"
-                          onClick={() => setPreviewModalUrl(getImageUrl(form.images[0].product_images))}
+                          onClick={() => {
+                            const galleryUrls = (form.images || []).map((i) => i.product_images).filter(Boolean);
+                            openPreview(galleryUrls, 0);
+                          }}
                           onError={(e) => handleImageError(e, form.images[0].product_images)}
                           className="h-full w-full object-cover cursor-pointer hover:opacity-90 transition"
                           title="Click to preview full-size image"
                         />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setConfirmDeleteModal({
+                              isOpen: true,
+                              title: 'Delete Primary Image',
+                              message: 'Do you really want to delete this primary product image?',
+                              onConfirm: async () => {
+                                await onRemoveImageRow(0, form.images[0]?.id);
+                                setConfirmDeleteModal({ isOpen: false });
+                              },
+                            });
+                          }}
+                          className="absolute top-2 right-2 rounded-full bg-red-600/90 text-white p-1.5 hover:bg-red-700 transition cursor-pointer shadow-md opacity-90 group-hover:opacity-100"
+                          title="Remove primary image"
+                        >
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
                       </div>
                     ) : (
                       <label className="md:col-span-2 flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-[#E2DDD5] bg-[#FAF8F5] p-8 text-center cursor-pointer hover:border-[#1A1817] transition select-none">
@@ -958,7 +1092,10 @@ function ProductView({
                                     src={getImageUrl(img.product_images)}
                                     alt={`Product image ${realIdx + 1}`}
                                     referrerPolicy="no-referrer"
-                                    onClick={() => setPreviewModalUrl(getImageUrl(img.product_images))}
+                                    onClick={() => {
+                                      const galleryUrls = (form.images || []).map((i) => i.product_images).filter(Boolean);
+                                      openPreview(galleryUrls, realIdx);
+                                    }}
                                     onError={(e) => handleImageError(e, img.product_images)}
                                     className="h-full w-full object-cover cursor-pointer hover:opacity-90 transition"
                                     title="Click to preview full-size image"
@@ -997,10 +1134,23 @@ function ProductView({
                                 </select>
                                 <button
                                   type="button"
-                                  onClick={() => onRemoveImageRow(realIdx, img.id)}
-                                  className="text-red-600 font-bold hover:underline cursor-pointer text-[10px]"
+                                  onClick={() => {
+                                    setConfirmDeleteModal({
+                                      isOpen: true,
+                                      title: 'Delete Image',
+                                      message: 'Do you really want to delete this supporting image?',
+                                      onConfirm: async () => {
+                                        await onRemoveImageRow(realIdx, img.id);
+                                        setConfirmDeleteModal({ isOpen: false });
+                                      },
+                                    });
+                                  }}
+                                  className="p-1 text-[#8C857B] hover:text-red-600 transition cursor-pointer"
+                                  title="Delete Image"
                                 >
-                                  Remove
+                                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
                                 </button>
                               </div>
                             </div>
@@ -1066,111 +1216,46 @@ function ProductView({
                 <div className="rounded-xl border border-[#E8E3DA] bg-white p-6 shadow-xs space-y-6">
                   <h3 className="font-serif text-2xl font-normal text-[#1A1817]">Categorization</h3>
 
-                  {/* BY TIER */}
-                  <div>
-                    <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-[#8C857B]">
-                      BY TIER
-                    </label>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      {['Standard', 'Premium', 'Luxury', 'Exclusive'].map((tier) => {
-                        const isSelected = selectedTiers.includes(tier);
-                        return (
-                          <button
-                            key={tier}
-                            type="button"
-                            onClick={() => toggleSelection(tier, selectedTiers, setSelectedTiers)}
-                            className={`rounded-lg border py-2 text-center font-medium transition cursor-pointer ${isSelected
-                                ? 'border-[#1A1817] bg-[#1A1817] text-white shadow-xs'
-                                : 'border-[#E2DDD5] bg-[#FAF8F5] text-[#1A1817] hover:border-[#1A1817]'
-                              }`}
-                          >
-                            {tier}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* BY TRADITION */}
-                  <div>
-                    <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-[#8C857B]">
-                      BY TRADITION
-                    </label>
-                    <div className="space-y-2.5 text-xs text-[#1A1817]">
-                      {['Hindu Wedding', 'Sikh Wedding', 'Islamic Wedding', 'Christian Wedding'].map((trad) => {
-                        const isChecked = selectedTraditions.includes(trad);
-                        return (
-                          <label key={trad} className="flex items-center gap-3 cursor-pointer select-none">
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={() => toggleSelection(trad, selectedTraditions, setSelectedTraditions)}
-                              className="h-4 w-4 rounded border-[#C5C0B6] accent-[#1A1817]"
-                            />
-                            <span className={isChecked ? 'font-semibold text-[#1A1817]' : 'text-[#59534C]'}>{trad}</span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* BY STYLE */}
-                  <div>
-                    <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-[#8C857B]">
-                      BY STYLE
-                    </label>
-                    <div className="flex flex-wrap gap-2 text-xs">
-                      {['Floral', 'Minimalist', 'Traditional', 'Modern', 'Vintage'].map((style) => {
-                        const isSelected = selectedStyles.includes(style);
-                        return (
-                          <button
-                            key={style}
-                            type="button"
-                            onClick={() => toggleSelection(style, selectedStyles, setSelectedStyles)}
-                            className={`rounded-lg border px-3 py-1.5 font-medium transition cursor-pointer ${isSelected
-                                ? 'border-[#1A1817] bg-[#1A1817] text-white shadow-xs'
-                                : 'border-[#D5CFC5] bg-white text-[#1A1817] hover:bg-[#F5CE93] hover:border-[#1A1817]'
-                              }`}
-                          >
-                            {style}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
                   {/* OCCASIONS */}
                   <div className="border-t border-[#F0ECE1] pt-5">
                     <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-[#8C857B]">
                       OCCASIONS <span className="text-red-600 font-bold">*</span>
                     </label>
-                    {occasionsList && occasionsList.length > 0 ? (
-                      <div className="flex flex-wrap gap-2 text-xs">
-                        {occasionsList.map((occ) => {
-                          const occIdStr = String(occ.id);
-                          const isSelected = (form.occasions_ids || '').split(',').map(s => s.trim()).includes(occIdStr);
-                          const occName = occ.occasions || occ.occasion_name || occ.name || `Occasion #${occ.id}`;
-                          return (
-                            <button
-                              key={occ.id}
-                              type="button"
-                              onClick={() => {
-                                const next = toggleIdInString(form.occasions_ids, occ.id);
-                                onChange({ target: { name: 'occasions_ids', value: next } });
-                              }}
-                              className={`rounded-lg px-3 py-1.5 font-medium transition cursor-pointer border ${isSelected
-                                  ? 'bg-[#1A1817] text-white border-[#1A1817] shadow-xs'
-                                  : 'bg-[#FAF8F5] text-[#1A1817] border-[#E2DDD5] hover:border-[#1A1817]'
-                                }`}
-                            >
-                              {occName} {isSelected && '✓'}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <p className="text-xs text-[#8C857B]">No occasions found.</p>
-                    )}
+                    {(() => {
+                      const activeOccs = (occasionsList || []).filter((occ) => {
+                        const status = occ.occasions_status || occ.status || 'Active';
+                        const occIdStr = String(occ.id);
+                        const isSelected = (form.occasions_ids || '').split(',').map(s => s.trim()).includes(occIdStr);
+                        return String(status).toLowerCase() === 'active' || isSelected;
+                      });
+                      return activeOccs.length > 0 ? (
+                        <div className="flex flex-wrap gap-2 text-xs">
+                          {activeOccs.map((occ) => {
+                            const occIdStr = String(occ.id);
+                            const isSelected = (form.occasions_ids || '').split(',').map(s => s.trim()).includes(occIdStr);
+                            const occName = occ.occasions || occ.occasion_name || occ.name || `Occasion #${occ.id}`;
+                            return (
+                              <button
+                                key={occ.id}
+                                type="button"
+                                onClick={() => {
+                                  const next = toggleIdInString(form.occasions_ids, occ.id);
+                                  onChange({ target: { name: 'occasions_ids', value: next } });
+                                }}
+                                className={`rounded-lg px-3 py-1.5 font-medium transition cursor-pointer border ${isSelected
+                                    ? 'bg-[#1A1817] text-white border-[#1A1817] shadow-xs'
+                                    : 'bg-[#FAF8F5] text-[#1A1817] border-[#E2DDD5] hover:border-[#1A1817]'
+                                  }`}
+                              >
+                                {occName} {isSelected && '✓'}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-[#8C857B]">No active occasions available.</p>
+                      );
+                    })()}
                   </div>
 
                   {/* CATEGORIES */}
@@ -1178,85 +1263,102 @@ function ProductView({
                     <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-[#8C857B]">
                       CATEGORIES <span className="text-red-600 font-bold">*</span>
                     </label>
-                    {categoriesList && categoriesList.length > 0 ? (
-                      <div className="flex flex-wrap gap-2 text-xs">
-                        {categoriesList.map((cat) => {
-                          const catIdStr = String(cat.id);
-                          const isSelected = (form.categories_ids || '').split(',').map(s => s.trim()).includes(catIdStr);
-                          const catName = cat.categories || cat.category_name || cat.name || `Category #${cat.id}`;
-                          return (
-                            <button
-                              key={cat.id}
-                              type="button"
-                              onClick={() => {
-                                const next = toggleIdInString(form.categories_ids, cat.id);
-                                onChange({ target: { name: 'categories_ids', value: next } });
-                              }}
-                              className={`rounded-lg px-3 py-1.5 font-medium transition cursor-pointer border ${isSelected
-                                  ? 'bg-[#1A1817] text-white border-[#1A1817] shadow-xs'
-                                  : 'bg-[#FAF8F5] text-[#1A1817] border-[#E2DDD5] hover:border-[#1A1817]'
-                                }`}
-                            >
-                              {catName} {isSelected && '✓'}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <p className="text-xs text-[#8C857B]">No categories found.</p>
-                    )}
+                    {(() => {
+                      const activeCats = (categoriesList || []).filter((cat) => {
+                        const status = cat.categories_status || cat.status || 'Active';
+                        const catIdStr = String(cat.id);
+                        const isSelected = (form.categories_ids || '').split(',').map(s => s.trim()).includes(catIdStr);
+                        return String(status).toLowerCase() === 'active' || isSelected;
+                      });
+                      return activeCats.length > 0 ? (
+                        <div className="flex flex-wrap gap-2 text-xs">
+                          {activeCats.map((cat) => {
+                            const catIdStr = String(cat.id);
+                            const isSelected = (form.categories_ids || '').split(',').map(s => s.trim()).includes(catIdStr);
+                            const catName = cat.categories || cat.category_name || cat.name || `Category #${cat.id}`;
+                            return (
+                              <button
+                                key={cat.id}
+                                type="button"
+                                onClick={() => {
+                                  const next = toggleIdInString(form.categories_ids, cat.id);
+                                  onChange({ target: { name: 'categories_ids', value: next } });
+                                }}
+                                className={`rounded-lg px-3 py-1.5 font-medium transition cursor-pointer border ${isSelected
+                                    ? 'bg-[#1A1817] text-white border-[#1A1817] shadow-xs'
+                                    : 'bg-[#FAF8F5] text-[#1A1817] border-[#E2DDD5] hover:border-[#1A1817]'
+                                  }`}
+                              >
+                                {catName} {isSelected && '✓'}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-[#8C857B]">No active categories available.</p>
+                      );
+                    })()}
                   </div>
 
-                  {/* CARD TYPES
+                  {/* CARD TYPES */}
                   <div className="border-t border-[#F0ECE1] pt-5">
                     <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-[#8C857B]">
-                      CARD TYPES
+                      CARD TYPES <span className="text-red-600 font-bold">*</span>
                     </label>
-                    {cardTypesList && cardTypesList.length > 0 ? (
-                      <div className="flex flex-wrap gap-2 text-xs">
-                        {cardTypesList.map((ct) => {
-                          const ctIdStr = String(ct.id);
-                          const isSelected = (form.card_types_ids || '').split(',').map(s => s.trim()).includes(ctIdStr);
-                          const ctName = ct.card_types || ct.card_type_name || ct.name || `Card Type #${ct.id}`;
-                          return (
-                            <button
-                              key={ct.id}
-                              type="button"
-                              onClick={() => {
-                                const next = toggleIdInString(form.card_types_ids, ct.id);
-                                onChange({ target: { name: 'card_types_ids', value: next } });
-                              }}
-                              className={`rounded-lg px-3 py-1.5 font-medium transition cursor-pointer border ${isSelected
-                                  ? 'bg-[#1A1817] text-white border-[#1A1817] shadow-xs'
-                                  : 'bg-[#FAF8F5] text-[#1A1817] border-[#E2DDD5] hover:border-[#1A1817]'
-                                }`}
-                            >
-                              {ctName} {isSelected && '✓'}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <p className="text-xs text-[#8C857B]">No card types found.</p>
-                    )}
+                    {(() => {
+                      const activeCardTypes = (cardTypesList || []).filter((ct) => {
+                        const status = ct.card_types_status || ct.status || 'Active';
+                        const ctIdStr = String(ct.id);
+                        const isSelected = (form.card_types_ids || '').split(',').map(s => s.trim()).includes(ctIdStr);
+                        return String(status).toLowerCase() === 'active' || isSelected;
+                      });
+                      return activeCardTypes.length > 0 ? (
+                        <div className="flex flex-wrap gap-2 text-xs">
+                          {activeCardTypes.map((ct) => {
+                            const ctIdStr = String(ct.id);
+                            const isSelected = (form.card_types_ids || '').split(',').map(s => s.trim()).includes(ctIdStr);
+                            const ctName = ct.card_types || ct.card_type_name || ct.name || `Card Type #${ct.id}`;
+                            return (
+                              <button
+                                key={ct.id}
+                                type="button"
+                                onClick={() => {
+                                  const next = toggleIdInString(form.card_types_ids, ct.id);
+                                  onChange({ target: { name: 'card_types_ids', value: next } });
+                                }}
+                                className={`rounded-lg px-3 py-1.5 font-medium transition cursor-pointer border ${isSelected
+                                    ? 'bg-[#1A1817] text-white border-[#1A1817] shadow-xs'
+                                    : 'bg-[#FAF8F5] text-[#1A1817] border-[#E2DDD5] hover:border-[#1A1817]'
+                                  }`}
+                              >
+                                {ctName} {isSelected && '✓'}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-[#8C857B]">No active card types available.</p>
+                      );
+                    })()}
                   </div>
-                  */}
 
-                  {/* STATUS */}
-                  <div className="border-t border-[#F0ECE1] pt-5">
-                    <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#8C857B]">
-                      STATUS
-                    </label>
-                    <select
-                      name="product_status"
-                      value={form.product_status || 'Active'}
-                      onChange={onChange}
-                      className="w-full rounded-md border border-[#E2DDD5] bg-[#FAF8F5] p-2 text-xs text-[#1A1817] outline-none focus:border-[#1A1817]"
-                    >
-                      <option value="Active">Active</option>
-                      <option value="Inactive">Inactive</option>
-                    </select>
-                  </div>
+                  {/* STATUS - Only shown in Edit Product mode */}
+                  {editingId && (
+                    <div className="border-t border-[#F0ECE1] pt-5">
+                      <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#8C857B]">
+                        STATUS
+                      </label>
+                      <select
+                        name="product_status"
+                        value={form.product_status || 'Active'}
+                        onChange={onChange}
+                        className="w-full rounded-md border border-[#E2DDD5] bg-[#FAF8F5] p-2 text-xs text-[#1A1817] outline-none focus:border-[#1A1817]"
+                      >
+                        <option value="Active">Active</option>
+                        <option value="Inactive">Inactive</option>
+                      </select>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1285,32 +1387,111 @@ function ProductView({
         </div>
       )}
 
-      {/* Fullscreen Image Preview Lightbox */}
-      {previewModalUrl && (
+      {/* Fullscreen Image Preview Lightbox with Left Thumbnail Sidebar */}
+      {previewModalData && previewModalData.images && previewModalData.images.length > 0 && (
         <div
-          onClick={() => setPreviewModalUrl(null)}
-          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 cursor-pointer"
+          onClick={() => setPreviewModalData(null)}
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 sm:p-8 animate-fade-in cursor-pointer select-none"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="relative max-h-[90vh] max-w-[90vw] overflow-hidden rounded-xl border border-white/20 bg-black/60 p-3 shadow-2xl flex flex-col items-center justify-center"
+            className="relative flex h-[88vh] w-[92vw] max-w-6xl overflow-hidden rounded-2xl border border-white/20 bg-stone-900/90 shadow-2xl backdrop-blur-xl"
           >
+            {/* Top Right Close Button */}
             <button
               type="button"
-              onClick={() => setPreviewModalUrl(null)}
-              className="absolute top-4 right-4 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-black/70 text-white hover:bg-red-600 transition cursor-pointer shadow-md"
+              onClick={() => setPreviewModalData(null)}
+              className="absolute top-4 right-4 z-20 flex h-10 w-10 items-center justify-center rounded-full bg-black/60 text-white hover:bg-red-600 transition cursor-pointer shadow-lg border border-white/10"
               title="Close Preview"
             >
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
-            <img
-              src={previewModalUrl}
-              alt="Image Preview"
-              referrerPolicy="no-referrer"
-              className="max-h-[82vh] max-w-[82vw] object-contain rounded-lg shadow-lg"
-            />
+
+            {/* LEFT SIDEBAR: Remaining / All Images Thumbnails */}
+            {previewModalData.images.length > 1 && (
+              <div className="w-36 border-r border-white/10 bg-black/50 p-4 overflow-y-auto flex flex-col gap-3 shrink-0 z-10 custom-scrollbar">
+                <div className="border-b border-white/10 pb-2 mb-1">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#C99C4B]">
+                    Images ({previewModalData.images.length})
+                  </p>
+                </div>
+                {previewModalData.images.map((imgUrl, i) => {
+                  const isActive = i === previewModalData.activeIndex;
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setPreviewModalData((prev) => ({ ...prev, activeIndex: i }))}
+                      className={`relative h-24 w-full rounded-lg overflow-hidden border transition-all cursor-pointer ${
+                        isActive
+                          ? 'border-[#C99C4B] ring-2 ring-[#C99C4B]/80 scale-105 shadow-lg'
+                          : 'border-white/20 opacity-60 hover:opacity-100 hover:border-white/50'
+                      }`}
+                    >
+                      <img
+                        src={imgUrl}
+                        alt={`Thumbnail ${i + 1}`}
+                        referrerPolicy="no-referrer"
+                        className="h-full w-full object-cover"
+                      />
+                      {isActive && (
+                        <div className="absolute inset-0 bg-[#C99C4B]/10 border-2 border-[#C99C4B] rounded-lg pointer-events-none" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* MAIN VIEWPORT: Selected Active Image */}
+            <div className="relative flex-1 flex items-center justify-center p-6 bg-black/30 overflow-hidden">
+              {previewModalData.images.length > 1 && (
+                <>
+                  {/* Left Arrow Button */}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPreviewModalData((prev) => ({
+                        ...prev,
+                        activeIndex: (prev.activeIndex - 1 + prev.images.length) % prev.images.length,
+                      }))
+                    }
+                    className="absolute left-4 top-1/2 -translate-y-1/2 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-black/60 text-white hover:bg-[#C99C4B] transition cursor-pointer border border-white/20 shadow-lg"
+                    title="Previous Image"
+                  >
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+
+                  {/* Right Arrow Button */}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPreviewModalData((prev) => ({
+                        ...prev,
+                        activeIndex: (prev.activeIndex + 1) % prev.images.length,
+                      }))
+                    }
+                    className="absolute right-4 top-1/2 -translate-y-1/2 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-black/60 text-white hover:bg-[#C99C4B] transition cursor-pointer border border-white/20 shadow-lg"
+                    title="Next Image"
+                  >
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                </>
+              )}
+
+              <img
+                src={previewModalData.images[previewModalData.activeIndex] || previewModalData.images[0]}
+                alt="Product Full Preview"
+                referrerPolicy="no-referrer"
+                className="max-h-[80vh] max-w-full object-contain rounded-lg shadow-2xl transition-all duration-300"
+              />
+            </div>
           </div>
         </div>
       )}
@@ -1321,6 +1502,20 @@ function ProductView({
         onClose={() => setShowLogoutConfirm(false)}
         onConfirm={handleConfirmLogout}
         submitting={loggingOut}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={confirmDeleteModal.isOpen}
+        onClose={() => setConfirmDeleteModal({ isOpen: false })}
+        onConfirm={async () => {
+          if (confirmDeleteModal.onConfirm) {
+            await confirmDeleteModal.onConfirm();
+          }
+        }}
+        title={confirmDeleteModal.title}
+        message={confirmDeleteModal.message}
+        submitting={submitting}
       />
     </div>
   );

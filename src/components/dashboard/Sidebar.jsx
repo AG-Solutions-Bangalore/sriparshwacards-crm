@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
+import { useAppContext } from '../../context/AppContext';
 
 const navItems = [
   {
@@ -70,6 +71,7 @@ const navItems = [
 
 function Sidebar() {
   const location = useLocation();
+  const { companyInfo, companyLogoUrl } = useAppContext();
 
   const isReportsActive = location.pathname.startsWith('/reports');
   const [reportsOpen, setReportsOpen] = useState(isReportsActive);
@@ -91,11 +93,21 @@ function Sidebar() {
     <aside className="sticky top-0 flex h-screen w-64 flex-col justify-between border-r border-[#E2DDD5] bg-[#EFECE6] px-5 py-6 text-[#2D2926] select-none flex-shrink-0 z-30">
       {/* Sticky Branding Header */}
       <div className="sticky top-0 bg-[#EFECE6] pt-1 pb-4 z-10 px-2 border-b border-[#E2DDD5]/60 mb-4">
+        {companyLogoUrl && (
+          <div className="mb-2 flex items-center gap-2.5">
+            <img
+              src={companyLogoUrl}
+              alt={companyInfo?.company_name || 'Company Logo'}
+              className="h-9 w-auto object-contain max-w-[140px]"
+              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+            />
+          </div>
+        )}
         <h1 className="font-serif text-2xl font-bold tracking-wider text-[#2D2926] uppercase leading-tight">
-          Sri Parshwa
+          {companyInfo?.company_name ? companyInfo.company_name.split(' ')[0] : 'Sri Parshwa'}
         </h1>
         <h2 className="font-serif text-2xl font-bold tracking-wider text-[#2D2926] uppercase leading-tight">
-          Cards
+          {companyInfo?.company_name ? companyInfo.company_name.split(' ').slice(1).join(' ') || 'Cards' : 'Cards'}
         </h2>
         <p className="mt-1.5 text-[11px] font-medium uppercase tracking-widest text-[#8C857B]">
           Managing Craftsmanship

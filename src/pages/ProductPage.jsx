@@ -223,6 +223,9 @@ function ProductPage() {
       if (!form.categories_ids || !form.categories_ids.trim()) {
         throw new Error('Please select at least one Category.');
       }
+      if (!form.card_types_ids || !form.card_types_ids.trim()) {
+        throw new Error('Please select at least one Card Type.');
+      }
 
       const validImages = (form.images || []).filter(
         (img) => (img.product_images && String(img.product_images).trim()) || img._file
@@ -236,7 +239,8 @@ function ProductPage() {
         response = await updateProduct(editingItem.id, form);
         toast.success(response?.message || 'Product updated successfully.');
       } else {
-        response = await createProduct(form);
+        const payload = { ...form, product_status: form.product_status || 'Active' };
+        response = await createProduct(payload);
         toast.success(response?.message || 'Product created successfully.');
       }
 
@@ -258,10 +262,27 @@ function ProductPage() {
       const item = response?.data || response?.product || response;
       setEditingItem(item);
 
-      const rawImages = item?.images || item?.product_images || item?.gallery || [];
+      let rawImages = item?.images || item?.product_images || item?.gallery || item?.image_url || [];
+      if (!Array.isArray(rawImages)) {
+        rawImages = (typeof rawImages === 'string' || (typeof rawImages === 'object' && rawImages !== null)) ? [rawImages] : [];
+      }
+
       let mappedImages = [];
-      if (Array.isArray(rawImages) && rawImages.length > 0) {
-        mappedImages = rawImages.map((img, idx) => {
+      if (rawImages.length > 0) {
+        const validRawImages = rawImages.filter((img) => {
+          if (!img) return false;
+          if (typeof img === 'string') {
+            return !img.toLowerCase().includes('no_image.jpg');
+          }
+          if (typeof img === 'object' && img !== null) {
+            if (img.image_for === 'No Image') return false;
+            const urlVal = String(img.image_url || img.product_images || img.url || img.path || '').toLowerCase();
+            if (urlVal.includes('no_image.jpg')) return false;
+          }
+          return true;
+        });
+
+        mappedImages = validRawImages.map((img, idx) => {
           if (typeof img === 'string') {
             return {
               product_images: img,
@@ -271,6 +292,7 @@ function ProductPage() {
           }
           const pathVal =
             img?.product_images ||
+            img?.image_url ||
             img?.image ||
             img?.image_path ||
             img?.file_path ||
@@ -285,9 +307,6 @@ function ProductPage() {
             product_images_status: img?.product_images_status || img?.status || 'Active',
           };
         });
-      }
-      if (mappedImages.length === 0) {
-        mappedImages = [];
       }
 
       setForm({
@@ -321,7 +340,6 @@ function ProductPage() {
 
   /* Delete Product */
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this product?')) return;
     setSubmitting(true);
     try {
       const res = await deleteProduct(id);

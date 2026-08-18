@@ -120,7 +120,7 @@ function CardTypeView({
   };
 
   return (
-    <div className="flex min-h-screen bg-[#F7F5F0] text-[#1A1817] font-sans">
+    <div className="flex h-screen overflow-hidden bg-[#F7F5F0] text-[#1A1817] font-sans">
       {/* SIDEBAR */}
       <Sidebar />
 
@@ -422,7 +422,8 @@ function CardTypeView({
             <button
               type="button"
               onClick={onCloseModal}
-              className="absolute right-4 top-4 text-[#8C857B] hover:text-[#1A1817] transition"
+              className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full text-[#8C857B] hover:text-[#1A1817] hover:bg-[#EFECE6] transition cursor-pointer"
+              title="Close modal"
             >
               ✕
             </button>
@@ -434,7 +435,7 @@ function CardTypeView({
             <form onSubmit={onSubmit} className="space-y-4">
               <div>
                 <label htmlFor="card_types" className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-[#8C857B]">
-                  CARD TYPE NAME
+                  CARD TYPE NAME <span className="text-red-600 font-bold">*</span>
                 </label>
                 <input
                   id="card_types"
@@ -451,12 +452,16 @@ function CardTypeView({
 
               <div>
                 <label htmlFor="card_types_images" className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-[#8C857B]">
-                  CARD TYPE IMAGE
+                  CARD TYPE IMAGE <span className="text-red-600 font-bold">*</span>
                 </label>
                 {form.card_types_images ? (
-                  <div className="relative mb-2 h-32 w-full rounded-lg overflow-hidden border border-[#E2DDD5] bg-[#FAF8F5]">
+                  <div className="relative mb-2 h-36 w-full rounded-lg overflow-hidden border border-[#E2DDD5] bg-[#FAF8F5] group">
                     <img
-                      src={getImageUrl(form.card_types_images)}
+                      src={
+                        form.card_types_images instanceof File
+                          ? URL.createObjectURL(form.card_types_images)
+                          : getImageUrl(form.card_types_images)
+                      }
                       alt="Card Type Preview"
                       referrerPolicy="no-referrer"
                       onError={(e) => handleImageError(e, form.card_types_images)}
@@ -465,37 +470,37 @@ function CardTypeView({
                     <button
                       type="button"
                       onClick={() => onChange({ target: { name: 'card_types_images', value: '' } })}
-                      className="absolute top-2 right-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-bold text-white hover:bg-red-600 transition cursor-pointer"
+                      className="absolute top-2 right-2 rounded-full bg-red-600/90 text-white p-1.5 hover:bg-red-700 transition cursor-pointer shadow-md"
+                      title="Delete image"
                     >
-                      Remove
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
                     </button>
                   </div>
-                ) : null}
-                <label className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-[#E2DDD5] bg-white p-4 text-center cursor-pointer hover:border-[#1A1817] transition select-none">
-                  <span className="text-xs font-semibold text-[#1A1817]">+ Upload Card Type WebP Image</span>
-                  <span className="text-[10px] text-[#8C857B] mt-0.5">Only .webp images are allowed</span>
-                  <input
-                    type="file"
-                    accept=".webp,image/webp"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        const isWebp = file.type.includes('webp') || file.name.toLowerCase().endsWith('.webp');
-                        if (!isWebp) {
-                          toast.error('Only WebP images (.webp) are allowed!');
-                          e.target.value = '';
-                          return;
+                ) : (
+                  <label className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-[#E2DDD5] bg-white p-5 text-center cursor-pointer hover:border-[#1A1817] transition select-none">
+                    <span className="text-xs font-semibold text-[#1A1817]">+ Upload Card Type WebP Image</span>
+                    <span className="text-[10px] text-[#8C857B] mt-0.5">Only .webp images are allowed</span>
+                    <input
+                      type="file"
+                      accept=".webp,image/webp"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const isWebp = file.type.includes('webp') || file.name.toLowerCase().endsWith('.webp');
+                          if (!isWebp) {
+                            toast.error('Only WebP images (.webp) are allowed!');
+                            e.target.value = '';
+                            return;
+                          }
+                          onChange({ target: { name: 'card_types_images', value: file } });
                         }
-                        const reader = new FileReader();
-                        reader.onload = (event) => {
-                          onChange({ target: { name: 'card_types_images', value: event.target.result } });
-                        };
-                        reader.readAsDataURL(file);
-                      }
-                    }}
-                  />
-                </label>
+                      }}
+                    />
+                  </label>
+                )}
               </div>
 
               {editingId ? (

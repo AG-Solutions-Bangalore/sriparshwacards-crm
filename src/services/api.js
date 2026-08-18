@@ -131,7 +131,7 @@ export const checkPanelStatus = async () => {
  */
 export const fetchPanelDotenv = async () => {
   const response = await api.get('/panel-fetch-dotenv');
-  return response.data;
+  return response?.data?.data || response?.data;
 };
 
 /**

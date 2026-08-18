@@ -106,7 +106,6 @@ function EnquiryPage() {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this enquiry?')) return;
     try {
       const res = await deleteEnquiry(id);
       toast.success(res?.message || 'Enquiry deleted successfully.');

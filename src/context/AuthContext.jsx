@@ -49,18 +49,25 @@ export function AuthProvider({ children }) {
           'Admin',
       };
 
+    const tokenExpiresAt = userInfo?.token_expires_at || responseData?.token_expires_at || null;
+
     // Persist auth
     localStorage.setItem(TOKEN_KEY, nextToken);
     localStorage.setItem(USER_KEY, JSON.stringify(nextUser));
+    if (tokenExpiresAt) {
+      localStorage.setItem('sp_cards_token_expires_at', tokenExpiresAt);
+    }
+
     setToken(nextToken);
     setUser(nextUser);
 
     // Fetch server-side dotenv config right after login
     try {
       const envData = await fetchPanelDotenv();
-      localStorage.setItem(DOTENV_KEY, JSON.stringify(envData));
-      setDotenvConfig(envData);
-      console.info('[AuthContext] panel-fetch-dotenv loaded:', envData);
+      const dotenvHash = typeof envData === 'string' ? envData : (envData?.data || envData);
+      localStorage.setItem(DOTENV_KEY, JSON.stringify(dotenvHash));
+      setDotenvConfig(dotenvHash);
+      console.info('[AuthContext] panel-fetch-dotenv loaded hash:', dotenvHash);
     } catch (err) {
       // Non-fatal — app continues even if dotenv fetch fails
       console.warn('[AuthContext] panel-fetch-dotenv failed (non-fatal):', err.message);

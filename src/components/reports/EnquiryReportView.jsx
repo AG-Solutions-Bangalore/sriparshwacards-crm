@@ -140,7 +140,7 @@ function EnquiryReportView({
   };
 
   return (
-    <div className="flex min-h-screen bg-[#F7F5F0] text-[#1A1817] font-sans">
+    <div className="flex h-screen overflow-hidden bg-[#F7F5F0] text-[#1A1817] font-sans">
       <Sidebar />
 
       <main className="flex-1 p-8 overflow-y-auto">
@@ -229,7 +229,7 @@ function EnquiryReportView({
           <form onSubmit={onSubmitFilter} className="grid grid-cols-1 gap-4 sm:grid-cols-4 items-end">
             {/* From Date */}
             <div>
-              <label htmlFor="fromDateInput" className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-[#8C857B]">
+              <label htmlFor="fromDateInput" className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-[#8C857B]">
                 FROM DATE
               </label>
               <input
@@ -237,13 +237,13 @@ function EnquiryReportView({
                 type="date"
                 value={fromDateInput}
                 onChange={(e) => onFromDateChange(e.target.value)}
-                className="w-full rounded-md border border-[#E2DDD5] bg-[#FAF8F5] p-2.5 text-xs text-[#1A1817] outline-none focus:border-[#1A1817] transition cursor-pointer"
+                className="w-full rounded-md border border-[#E2DDD5] bg-[#FAF8F5] px-3 py-1.5 font-normal text-[10px] text-[#1A1817] outline-none focus:border-[#1A1817] transition cursor-pointer"
               />
             </div>
 
             {/* To Date */}
             <div>
-              <label htmlFor="toDateInput" className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-[#8C857B]">
+              <label htmlFor="toDateInput" className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-[#8C857B]">
                 TO DATE
               </label>
               <input
@@ -251,22 +251,22 @@ function EnquiryReportView({
                 type="date"
                 value={toDateInput}
                 onChange={(e) => onToDateChange(e.target.value)}
-                className="w-full rounded-md border border-[#E2DDD5] bg-[#FAF8F5] p-2.5 text-xs text-[#1A1817] outline-none focus:border-[#1A1817] transition cursor-pointer"
+                className="w-full rounded-md border border-[#E2DDD5] bg-[#FAF8F5] px-3 py-1.5 font-normal text-[10px] text-[#1A1817] outline-none focus:border-[#1A1817] transition cursor-pointer"
               />
             </div>
 
             {/* Status Filter */}
             <div>
-              <label htmlFor="statusInput" className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-[#8C857B]">
+              <label htmlFor="statusInput" className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-[#8C857B]">
                 STATUS
               </label>
               <select
                 id="statusInput"
                 value={statusInput}
                 onChange={(e) => onStatusInputChange(e.target.value)}
-                className="w-full rounded-md border border-[#E2DDD5] bg-[#FAF8F5] p-2.5 text-xs text-[#1A1817] outline-none focus:border-[#1A1817] transition cursor-pointer"
+                className="w-full rounded-md border border-[#E2DDD5] bg-[#FAF8F5] px-3 py-1.5 text-[10px] font-normal text-[#1A1817] outline-none focus:border-[#1A1817] transition cursor-pointer"
               >
-                <option value="ALL">All Statuses</option>
+                <option value="ALL">All Status</option>
                 <option value="Pending">Pending</option>
                 <option value="Followed">Followed</option>
                 <option value="Not Interested">Not Interested</option>
@@ -308,12 +308,13 @@ function EnquiryReportView({
               type="button"
               onClick={handleExport}
               disabled={!hasSubmitted || items.length === 0}
-              className="flex items-center gap-2 rounded-full bg-emerald-700 hover:bg-emerald-800 px-5 py-1.5 font-serif text-xs font-normal tracking-wide text-white transition shadow-xs cursor-pointer disabled:opacity-50"
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-700 hover:bg-emerald-800 text-white transition shadow-xs cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Download Excel Report (.xlsx)"
+              aria-label="Download Excel Report"
             >
-              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
               </svg>
-              Download Excel (.xlsx)
             </button>
           </div>
 
